@@ -13,16 +13,8 @@ import {
   SelectChangeEvent,
   Chip,
   Paper,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
-  Divider,
   Alert,
   LinearProgress,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
   Switch,
   FormControlLabel,
 } from '@mui/material';
@@ -30,12 +22,11 @@ import {
   BugReport,
   PlayArrow,
   Schedule,
-  CheckCircle,
-  Warning,
-  ExpandMore,
-  Description,
   Settings,
+  Download,
+  TableView,
 } from '@mui/icons-material';
+import { DataGrid, GridColDef, GridRenderCellParams, GridValueGetterParams } from '@mui/x-data-grid';
 import axios from 'axios';
 
 const TestGeneration: React.FC = () => {
@@ -47,6 +38,7 @@ const TestGeneration: React.FC = () => {
   const [generatedTests, setGeneratedTests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [retryable, setRetryable] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const journeys = ['Point of Settlement', 'Payment Processing', 'Account Management'];
@@ -63,6 +55,7 @@ const TestGeneration: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
+      setRetryable(false);
       
       const response = await axios.post('/api/tests/generate', {
         journey: selectedJourney,
@@ -72,9 +65,28 @@ const TestGeneration: React.FC = () => {
         model: selectedModel || undefined,
       });
       
-      setGeneratedTests(response.data.tests);
+      // Check if the response indicates an error with retry suggestion
+      if (response.data.debug?.status === 'error' && response.data.debug?.retry_suggested) {
+        setError(response.data.debug.message);
+        setRetryable(true);
+      } else {
+        setGeneratedTests(response.data.tests);
+      }
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to generate tests');
+      let errorMessage = err.response?.data?.detail || 'Failed to generate tests';
+      let isRetryable = false;
+      
+      // Check for retryable error conditions
+      if (errorMessage.includes('temporarily unavailable') || 
+          errorMessage.includes('high demand') ||
+          errorMessage.includes('503') ||
+          errorMessage.includes('timeout') ||
+          errorMessage.includes('rate limit')) {
+        isRetryable = true;
+      }
+      
+      setError(errorMessage);
+      setRetryable(isRetryable);
       console.error('Test generation error:', err);
     } finally {
       setLoading(false);
@@ -108,6 +120,29 @@ const TestGeneration: React.FC = () => {
     }
   };
 
+  const handleExportExcel = async () => {
+    if (generatedTests.length === 0) return;
+
+    try {
+      const response = await axios.post('/api/tests/export-excel', generatedTests, {
+        responseType: 'blob',
+      });
+      
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'test_cases.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      setError('Failed to export test cases to Excel');
+      console.error('Export error:', err);
+    }
+  };
+
   const getTestTypeColor = (title: string) => {
     if (title.toLowerCase().includes('happy') || title.toLowerCase().includes('positive')) {
       return 'success';
@@ -119,6 +154,95 @@ const TestGeneration: React.FC = () => {
       return 'default';
     }
   };
+
+  // Define DataGrid columns
+  const columns: GridColDef[] = [
+    { 
+      field: 'key', 
+      headerName: 'Key', 
+      width: 100
+    },
+    { 
+      field: 'name', 
+      headerName: 'Name', 
+      width: 250
+    },
+    { 
+      field: 'status', 
+      headerName: 'Status', 
+      width: 100,
+      renderCell: (params: GridRenderCellParams) => (
+        <Chip 
+          label={params.row.status || 'Draft'} 
+          color="default" 
+          size="small" 
+        />
+      )
+    },
+    { 
+      field: 'precondition_objective', 
+      headerName: 'Precondition Objective', 
+      width: 200
+    },
+    { 
+      field: 'folder', 
+      headerName: 'Folder', 
+      width: 150
+    },
+    { 
+      field: 'priority', 
+      headerName: 'Priority', 
+      width: 100,
+      renderCell: (params: GridRenderCellParams) => {
+        const priority = params.row.priority || 'Medium';
+        const color = priority === 'High' ? 'error' : priority === 'Low' ? 'success' : 'warning';
+        return <Chip label={priority} color={color} size="small" />;
+      }
+    },
+    { 
+      field: 'component_labels_str', 
+      headerName: 'Component Labels', 
+      width: 180
+    },
+    { 
+      field: 'owner', 
+      headerName: 'Owner', 
+      width: 120
+    },
+    { 
+      field: 'estimated_time', 
+      headerName: 'Estimated Time', 
+      width: 130
+    },
+    { 
+      field: 'coverage', 
+      headerName: 'Coverage', 
+      width: 150
+    },
+    { 
+      field: 'test_script', 
+      headerName: 'Test Script', 
+      width: 300
+    }
+  ];
+
+  // Prepare data for DataGrid
+  const gridData = generatedTests.map((test: any, index: number) => ({
+    id: index + 1,
+    key: test.key || test.test_id || `TC${String(index + 1).padStart(3, '0')}`,
+    name: test.name || test.title || 'Untitled Test',
+    status: test.status || 'Draft',
+    precondition_objective: test.precondition_objective || 'N/A',
+    folder: test.folder || selectedJourney,
+    priority: test.priority || 'Medium',
+    component_labels_str: Array.isArray(test.component_labels) 
+      ? test.component_labels.join(', ') 
+      : test.component_labels || 'N/A',
+    owner: test.owner || 'QA Team',
+    estimated_time: test.estimated_time || 'N/A',
+    coverage: test.coverage || 'N/A',
+    test_script: test.test_script || 'N/A'
+  }));
 
   return (
     <Box>
@@ -255,13 +379,25 @@ const TestGeneration: React.FC = () => {
         <Box sx={{ flex: '2 1 600px', minWidth: '500px' }}>
           <Card>
             <CardContent>
-              <Typography variant="h6" sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
-                <BugReport />
-                Generated Test Cases
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <TableView />
+                  Generated Test Cases
+                  {generatedTests.length > 0 && (
+                    <Chip label={generatedTests.length} color="primary" size="small" />
+                  )}
+                </Typography>
                 {generatedTests.length > 0 && (
-                  <Chip label={generatedTests.length} color="primary" size="small" />
+                  <Button
+                    variant="outlined"
+                    startIcon={<Download />}
+                    onClick={handleExportExcel}
+                    size="small"
+                  >
+                    Export to Excel
+                  </Button>
                 )}
-              </Typography>
+              </Box>
 
               {loading && (
                 <Box sx={{ mb: 3 }}>
@@ -273,74 +409,57 @@ const TestGeneration: React.FC = () => {
               )}
 
               {error && (
-                <Alert severity="error" sx={{ mb: 3 }}>
+                <Alert 
+                  severity="error" 
+                  sx={{ mb: 3 }}
+                  action={
+                    retryable ? (
+                      <Button 
+                        color="inherit" 
+                        size="small" 
+                        onClick={handleGenerateTests}
+                        disabled={loading}
+                      >
+                        Retry
+                      </Button>
+                    ) : null
+                  }
+                >
                   {error}
+                  {retryable && (
+                    <Typography variant="caption" display="block" sx={{ mt: 1 }}>
+                      💡 This appears to be a temporary issue. Please try again.
+                    </Typography>
+                  )}
                 </Alert>
               )}
 
               {generatedTests.length > 0 ? (
-                <List>
-                  {generatedTests.map((test: any, index: number) => (
-                    <React.Fragment key={index}>
-                      <ListItem sx={{ px: 0, py: 2 }}>
-                        <ListItemIcon>
-                          <BugReport color="primary" />
-                        </ListItemIcon>
-                        <ListItemText
-                          primary={
-                            <Box sx={{ mb: 1 }}>
-                              <Typography variant="h6" sx={{ mb: 1 }}>
-                                {test.title}
-                              </Typography>
-                              <Chip
-                                label={getTestTypeColor(test.title)}
-                                color={getTestTypeColor(test.title) as any}
-                                size="small"
-                                sx={{ mr: 1 }}
-                              />
-                              {test.tags?.map((tag: string, tagIndex: number) => (
-                                <Chip
-                                  key={tagIndex}
-                                  label={tag}
-                                  variant="outlined"
-                                  size="small"
-                                  sx={{ mr: 1 }}
-                                />
-                              ))}
-                            </Box>
-                          }
-                          secondary={
-                            <Box>
-                              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-                                Steps:
-                              </Typography>
-                              <List dense>
-                                {test.steps?.map((step: string, stepIndex: number) => (
-                                  <ListItem key={stepIndex} sx={{ py: 0 }}>
-                                    <ListItemIcon sx={{ minWidth: 30 }}>
-                                      <Typography variant="body2" color="primary">
-                                        {stepIndex + 1}.
-                                      </Typography>
-                                    </ListItemIcon>
-                                    <ListItemText primary={step} />
-                                  </ListItem>
-                                ))}
-                              </List>
-                              
-                              <Typography variant="subtitle2" sx={{ mt: 2, fontWeight: 600 }}>
-                                Expected Result:
-                              </Typography>
-                              <Typography variant="body2" color="text.secondary">
-                                {test.expected}
-                              </Typography>
-                            </Box>
-                          }
-                        />
-                      </ListItem>
-                      {index < generatedTests.length - 1 && <Divider />}
-                    </React.Fragment>
-                  ))}
-                </List>
+                <Box sx={{ height: 600, width: '100%' }}>
+                  <DataGrid
+                    rows={gridData}
+                    columns={columns}
+                    initialState={{
+                      pagination: {
+                        paginationModel: {
+                          pageSize: 10,
+                        },
+                      },
+                    }}
+                    pageSizeOptions={[10, 25, 50]}
+                    checkboxSelection
+                    disableRowSelectionOnClick
+                    sx={{
+                      '& .MuiDataGrid-cell': {
+                        fontSize: '0.875rem',
+                      },
+                      '& .MuiDataGrid-columnHeaders': {
+                        backgroundColor: 'rgba(0, 0, 0, 0.02)',
+                        fontWeight: 600,
+                      },
+                    }}
+                  />
+                </Box>
               ) : (
                 <Paper sx={{ p: 4, textAlign: 'center' }}>
                   <BugReport sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />

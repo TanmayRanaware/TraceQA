@@ -201,7 +201,7 @@ class RequirementsManager:
     async def get_timeline(self, journey: str) -> Dict[str, Any]:
         """Get timeline of requirement changes for a journey"""
         try:
-            versions = await list_versions(journey)
+            versions = list_versions(journey)
             
             timeline = []
             for version in versions:
@@ -282,7 +282,7 @@ class RequirementsManager:
         }}
         """
         
-        response = await self.llm_provider.complete(
+        response = self.llm_provider.complete(
             [{"role": "user", "content": prompt}],
             model=config.llm.default_model,
             temperature=config.llm.default_temperature
@@ -325,7 +325,7 @@ class RequirementsManager:
         Provide your analysis in a structured format.
         """
         
-        response = await self.llm_provider.complete(
+        response = self.llm_provider.complete(
             [{"role": "user", "content": prompt}],
             model=config.llm.default_model,
             temperature=config.llm.default_temperature

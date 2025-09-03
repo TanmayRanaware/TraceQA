@@ -124,7 +124,7 @@ async def requirement_versions(journey: str | None = None):
 async def requirement_timeline(journey: str):
 	"""Get complete timeline with change analysis for a journey."""
 	try:
-		timeline = await requirements_manager.get_requirement_timeline(journey)
+		timeline = await requirements_manager.get_timeline(journey)
 		return {"journey": journey, "timeline": timeline}
 	except Exception as e:
 		raise HTTPException(status_code=500, detail=f"Failed to get timeline: {str(e)}")
@@ -134,10 +134,9 @@ async def requirement_timeline(journey: str):
 async def fact_check(req: FactCheckRequest):
 	"""Fact-check a claim against stored requirements."""
 	try:
-		result = await requirements_manager.fact_check_claim(
+		result = await requirements_manager.fact_check(
 			journey=req.journey,
-			claim=req.claim,
-			top_k=req.top_k
+			claim=req.claim
 		)
 		return result
 	except Exception as e:

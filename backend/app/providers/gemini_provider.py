@@ -1,6 +1,8 @@
 import os
 import json
 import requests
+import time
+import random
 from typing import List, Dict, Any
 from .llm_base import LLMProvider
 
@@ -12,6 +14,29 @@ class GeminiProvider(LLMProvider):
             raise ValueError("GEMINI_API_KEY environment variable is required")
         
         self.base_url = "https://generativelanguage.googleapis.com/v1beta"
+        
+    def _retry_request(self, func, max_retries=3, base_delay=1):
+        """Retry wrapper for API requests with exponential backoff"""
+        for attempt in range(max_retries):
+            try:
+                return func()
+            except requests.exceptions.RequestException as e:
+                if attempt == max_retries - 1:
+                    # Last attempt, re-raise the exception
+                    raise e
+                
+                # Check if it's a retryable error (5xx, 429, or connection errors)
+                if (hasattr(e, 'response') and e.response is not None and 
+                    (e.response.status_code >= 500 or e.response.status_code == 429)) or \
+                   isinstance(e, (requests.exceptions.ConnectionError, requests.exceptions.Timeout)):
+                    
+                    # Calculate delay with exponential backoff and jitter
+                    delay = base_delay * (2 ** attempt) + random.uniform(0, 1)
+                    print(f"Gemini API error (attempt {attempt + 1}/{max_retries}): {str(e)}. Retrying in {delay:.2f}s...")
+                    time.sleep(delay)
+                else:
+                    # Non-retryable error, re-raise immediately
+                    raise e
     
     def complete(self, messages: List[Dict[str, str]], model: str = "gemini-2.0-flash", temperature: float = 0.2, tools=None) -> str:
         """Generate text completion using Gemini API"""
@@ -73,8 +98,13 @@ class GeminiProvider(LLMProvider):
             
             url = f"{self.base_url}/models/{model}:generateContent"
             
-            response = requests.post(url, headers=headers, json=payload, timeout=30)
-            response.raise_for_status()
+            # Use retry wrapper for the API request
+            def make_request():
+                response = requests.post(url, headers=headers, json=payload, timeout=30)
+                response.raise_for_status()
+                return response
+            
+            response = self._retry_request(make_request)
             
             result = response.json()
             
@@ -111,8 +141,13 @@ class GeminiProvider(LLMProvider):
                 
                 url = f"{self.base_url}/models/{model}:embedContent"
                 
-                response = requests.post(url, headers=headers, json=payload, timeout=30)
-                response.raise_for_status()
+                # Use retry wrapper for the API request
+                def make_embed_request():
+                    response = requests.post(url, headers=headers, json=payload, timeout=30)
+                    response.raise_for_status()
+                    return response
+                
+                response = self._retry_request(make_embed_request)
                 
                 result = response.json()
                 

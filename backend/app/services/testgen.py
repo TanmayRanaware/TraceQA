@@ -1,6 +1,7 @@
 import os
 import json
 from typing import List, Dict, Any
+from fastapi import HTTPException
 from ..providers.provider_factory import get_provider
 from ..services.rag import RAGService
 from ..config import config
@@ -25,19 +26,25 @@ class TestGenerator:
             model = model or config.llm.default_model
             temperature = temperature or config.llm.default_temperature
             
-            # Search for relevant requirements context
-            search_query = f"test requirements specifications {context}".strip()
+            # Search for relevant requirements context - ONLY from uploaded documents for this journey
+            # Use a more specific search that focuses on the actual requirements content
+            if context:
+                search_query = context
+            else:
+                # Search for core requirement content in the journey documents
+                search_query = f"{journey} requirements functional specifications business rules"
+            
             context_results = await self.rag_service.search(
                 query=search_query,
                 top_k=config.top_k,
-                metadata_filter={"journey": journey}
+                metadata_filter={"journey": journey}  # Strictly filter by journey
             )
             
             if not context_results:
-                return {
-                    "status": "error",
-                    "message": f"No requirements found for journey: {journey}"
-                }
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"No requirements documents found for journey '{journey}'. Please upload requirement documents for this journey before generating test cases."
+                )
             
             # Build context from search results
             context_text = self._build_context(context_results, context)
@@ -60,10 +67,26 @@ class TestGenerator:
                 "model_used": model
             }
             
+        except HTTPException:
+            # Re-raise HTTP exceptions to be handled by FastAPI
+            raise
         except Exception as e:
+            error_message = str(e)
+            
+            # Provide more user-friendly error messages for common API issues
+            if "503 Server Error" in error_message or "Service Unavailable" in error_message:
+                error_message = "The AI service is temporarily unavailable due to high demand. Please try again in a few moments."
+            elif "429" in error_message or "rate limit" in error_message.lower():
+                error_message = "Rate limit exceeded. Please wait a moment before trying again."
+            elif "timeout" in error_message.lower():
+                error_message = "The AI service is taking longer than expected to respond. Please try again."
+            elif "connection" in error_message.lower():
+                error_message = "Unable to connect to the AI service. Please check your internet connection and try again."
+            
             return {
                 "status": "error",
-                "message": f"Test generation failed: {str(e)}"
+                "message": f"Test generation failed: {error_message}",
+                "retry_suggested": True
             }
     
     async def generate_batch_tests(
@@ -104,24 +127,49 @@ class TestGenerator:
             }
     
     def _build_context(self, search_results: List[Dict[str, Any]], additional_context: str) -> str:
-        """Build context from search results and additional input"""
+        """Build context from search results - strictly from uploaded documents"""
         context_parts = []
+        
+        # Add document information header
+        context_parts.append("=== UPLOADED REQUIREMENTS DOCUMENTS ===")
+        
+        # Group results by document source for better organization
+        doc_groups = {}
+        for result in search_results[:10]:  # Use more results for comprehensive context
+            metadata = result.get('metadata', {})
+            doc_uri = metadata.get('document_uri', 'Unknown')
+            source_type = metadata.get('source_type', 'Unknown')
+            version = metadata.get('version', 'Unknown')
+            
+            doc_key = f"{source_type}_{doc_uri}_{version}"
+            if doc_key not in doc_groups:
+                doc_groups[doc_key] = {
+                    'source_type': source_type,
+                    'document_uri': doc_uri,
+                    'version': version,
+                    'summary': metadata.get('summary', 'No summary available'),
+                    'chunks': []
+                }
+            doc_groups[doc_key]['chunks'].append(result.get('text', ''))
+        
+        # Build structured context from documents
+        for i, (doc_key, doc_info) in enumerate(doc_groups.items(), 1):
+            context_parts.append(f"\nDocument {i}: {doc_info['source_type'].upper()}")
+            context_parts.append(f"Summary: {doc_info['summary']}")
+            context_parts.append(f"Version: {doc_info['version']}")
+            context_parts.append("Content Excerpts:")
+            
+            # Add document chunks (limit to prevent overwhelming the LLM)
+            for j, chunk in enumerate(doc_info['chunks'][:3], 1):
+                context_parts.append(f"  {j}. {chunk[:500]}...")
+            
+            context_parts.append("-" * 50)
         
         # Add additional context if provided
         if additional_context.strip():
-            context_parts.append(f"Additional Context: {additional_context}")
+            context_parts.append(f"\nAdditional Context: {additional_context}")
         
-        # Add requirements context
-        requirements_context = []
-        for i, result in enumerate(search_results[:5]):  # Limit to top 5 results
-            requirements_context.append(
-                f"Requirement {i+1}:\n{result.get('text', '')[:300]}..."
-            )
-        
-        if requirements_context:
-            context_parts.append("Requirements Context:\n" + "\n\n".join(requirements_context))
-        
-        return "\n\n".join(context_parts)
+        return "\n".join(context_parts)
     
     async def _generate_with_llm(
         self,
@@ -133,43 +181,56 @@ class TestGenerator:
     ) -> List[Dict[str, Any]]:
         """Generate test cases using LLM"""
         prompt = f"""
-        Generate {max_cases} comprehensive test cases for the {journey} journey based on the following requirements context.
+        You are a QA Engineer creating test cases STRICTLY based on the uploaded requirements documents provided below. 
+        
+        IMPORTANT CONSTRAINTS:
+        - Generate test cases ONLY from the specific requirements, specifications, and business rules found in the uploaded documents
+        - DO NOT create generic test cases or assumptions beyond what is documented
+        - Each test case must be traceable to specific requirements mentioned in the documents
+        - If insufficient information is available in the documents, generate fewer but more accurate test cases
+        
+        Generate {max_cases} comprehensive test cases for the {journey} journey based EXCLUSIVELY on the following uploaded documents:
+        
+        {context}
         
         Each test case should include:
-        1. Test ID (TC001, TC002, etc.)
-        2. Test Title (clear, descriptive)
-        3. Test Description (what is being tested)
-        4. Preconditions (what must be in place)
-        5. Test Steps (numbered steps to execute)
-        6. Expected Results (what should happen)
-        7. Test Data (any specific data needed)
-        8. Priority (High/Medium/Low)
-        9. Test Type (Functional/Non-Functional/Integration/Regression)
-        
-        Requirements Context:
-        {context}
+        1. Key (unique identifier like TC001, TC002, etc.)
+        2. Name (clear, descriptive test case name based on specific requirements)
+        3. Status (always "Draft" for new test cases)
+        4. Precondition Objective (what must be established before testing, based on document requirements)
+        5. Folder (category/module name from the {journey} journey)
+        6. Priority (High/Medium/Low based on requirement criticality in documents)
+        7. Component Labels (system components mentioned in the documents)
+        8. Owner (QA Team)
+        9. Estimated Time (estimated execution time in minutes)
+        10. Coverage (specific functionality coverage as described in documents)
+        11. Test Script (detailed test steps derived from documented workflows and business rules)
         
         Generate the test cases in JSON format:
         [
             {{
-                "test_id": "TC001",
-                "title": "Test Title",
-                "description": "Test Description",
-                "preconditions": ["Precondition 1", "Precondition 2"],
-                "test_steps": ["Step 1", "Step 2", "Step 3"],
-                "expected_results": ["Expected Result 1", "Expected Result 2"],
-                "test_data": "Specific test data if needed",
-                "priority": "High",
-                "test_type": "Functional"
+                "key": "TC001",
+                "name": "[Test name derived from specific requirement]",
+                "status": "Draft",
+                "precondition_objective": "[Based on documented prerequisites]",
+                "folder": "{journey}",
+                "priority": "[Based on requirement criticality]",
+                "component_labels": ["[Components mentioned in documents]"],
+                "owner": "QA Team",
+                "estimated_time": "[X] minutes",
+                "coverage": "[Specific functionality from documents]",
+                "test_script": "[Step-by-step procedure based on documented workflows]"
             }}
         ]
         
-        Focus on:
-        - Edge cases and boundary conditions
-        - Error scenarios and exception handling
-        - Integration points with other systems
-        - Compliance and regulatory requirements
-        - Performance and security considerations
+        Focus ONLY on what is explicitly documented:
+        - Functional requirements and business rules mentioned in the documents
+        - Workflows and processes described in the uploaded requirements
+        - Validation rules and error conditions specified in the documents
+        - Integration points and dependencies mentioned in the requirements
+        - Compliance and regulatory requirements explicitly stated in the documents
+        
+        REMEMBER: Generate test cases only from the uploaded document content provided above. Do not add generic test scenarios.
         """
         
         response = self.llm_provider.complete(
