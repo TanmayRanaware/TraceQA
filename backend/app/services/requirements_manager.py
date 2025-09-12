@@ -120,37 +120,62 @@ class RequirementsManager:
         journey: str,
         claim: str
     ) -> Dict[str, Any]:
-        """Fact-check a claim against requirements"""
+        """Answer questions and fact-check claims against uploaded requirements documents"""
         try:
-            # Search for relevant evidence
-            evidence_results = await self.rag_service.search(
-                query=claim,
-                top_k=config.top_k,
-                metadata_filter={"journey": journey}
-            )
+            # Search for relevant evidence from uploaded documents
+            # Use multiple search strategies to find comprehensive information
+            search_queries = [
+                claim,  # Original question
+                f"{journey} {claim}",  # Journey-specific search
+                # Extract key terms for broader search
+                " ".join([word for word in claim.split() if len(word) > 3])
+            ]
+            
+            all_evidence = []
+            seen_chunks = set()
+            
+            for query in search_queries:
+                results = await self.rag_service.search(
+                    query=query,
+                    top_k=5,  # Get more results per query
+                    metadata_filter={"journey": journey}
+                )
+                
+                # Deduplicate results based on text content
+                for result in results:
+                    text_hash = hash(result.get('text', '')[:200])  # Hash first 200 chars
+                    if text_hash not in seen_chunks:
+                        seen_chunks.add(text_hash)
+                        all_evidence.append(result)
+            
+            # Limit total results and sort by relevance
+            evidence_results = all_evidence[:config.top_k]
             
             if not evidence_results:
                 return {
                     "status": "success",
                     "journey": journey,
                     "claim": claim,
+                    "answer": "No relevant information found in the uploaded documents for this journey. Please ensure you have uploaded the appropriate requirement documents.",
                     "evidence": [],
-                    "evidence_analysis": {
-                        "strength": "very_weak",
-                        "confidence": 0.0,
-                        "sources": 0,
-                        "total_evidence": 0
-                    }
+                    "confidence": 0.0,
+                    "sources_used": 0
                 }
             
-            # Analyze evidence using LLM
+            # Generate comprehensive answer based on evidence
+            answer = await self._generate_answer_from_evidence(claim, evidence_results, journey)
+            
+            # Analyze evidence strength for confidence scoring
             evidence_analysis = await self._analyze_evidence(claim, evidence_results)
             
             return {
                 "status": "success",
                 "journey": journey,
                 "claim": claim,
+                "answer": answer,
                 "evidence": evidence_results,
+                "confidence": evidence_analysis.get("confidence", 0.5),
+                "sources_used": len(evidence_results),
                 "evidence_analysis": evidence_analysis
             }
             
@@ -246,6 +271,82 @@ class RequirementsManager:
             [{"role": "user", "content": prompt}],
             model=config.llm.default_model,
             temperature=config.llm.default_temperature
+        )
+        
+        return response.strip()
+    
+    async def _generate_answer_from_evidence(
+        self,
+        question: str,
+        evidence_results: List[Dict[str, Any]],
+        journey: str
+    ) -> str:
+        """Generate comprehensive answer based on evidence from uploaded documents"""
+        
+        # Organize evidence by document source
+        doc_evidence = {}
+        for result in evidence_results:
+            metadata = result.get('metadata', {})
+            doc_key = f"{metadata.get('source_type', 'Unknown')} - {metadata.get('version', 'Unknown')}"
+            if doc_key not in doc_evidence:
+                doc_evidence[doc_key] = {
+                    'source_type': metadata.get('source_type', 'Unknown'),
+                    'version': metadata.get('version', 'Unknown'),
+                    'summary': metadata.get('summary', 'No summary available'),
+                    'chunks': []
+                }
+            doc_evidence[doc_key]['chunks'].append(result.get('text', ''))
+        
+        # Build structured evidence context
+        evidence_context = f"=== UPLOADED REQUIREMENTS DOCUMENTS FOR {journey.upper()} ===\n\n"
+        
+        for i, (doc_key, doc_info) in enumerate(doc_evidence.items(), 1):
+            evidence_context += f"Document {i}: {doc_info['source_type'].upper()}\n"
+            evidence_context += f"Version: {doc_info['version']}\n"
+            evidence_context += f"Summary: {doc_info['summary']}\n"
+            evidence_context += "Relevant Content:\n"
+            
+            for j, chunk in enumerate(doc_info['chunks'][:3], 1):  # Limit to 3 chunks per document
+                evidence_context += f"  {j}. {chunk[:800]}...\n"
+            
+            evidence_context += "-" * 60 + "\n\n"
+        
+        prompt = f"""
+        You are an expert analyst answering questions based STRICTLY on uploaded requirement documents.
+        
+        QUESTION: {question}
+        
+        JOURNEY: {journey}
+        
+        UPLOADED DOCUMENTS CONTENT:
+        {evidence_context}
+        
+        INSTRUCTIONS:
+        1. Answer the question based ONLY on the information provided in the uploaded documents above
+        2. If the documents contain specific details (numbers, amounts, percentages, conditions), include them in your answer
+        3. If the question asks about specific calculations or amounts, provide the exact figures if available in the documents
+        4. If the information is not available in the uploaded documents, clearly state that
+        5. Cite which document type (FSD, Addendum, etc.) contains the information
+        6. Be specific and detailed in your response
+        7. If there are multiple scenarios or conditions mentioned in the documents, explain them clearly
+        
+        FORMAT YOUR ANSWER AS:
+        
+        **Answer:** [Your detailed answer based on the uploaded documents]
+        
+        **Source:** [Which document(s) contain this information]
+        
+        **Additional Details:** [Any relevant context, conditions, or calculations from the documents]
+        
+        **Note:** [Any limitations or missing information]
+        
+        Remember: Answer ONLY based on what is explicitly stated in the uploaded requirement documents provided above.
+        """
+        
+        response = self.llm_provider.complete(
+            [{"role": "user", "content": prompt}],
+            model=config.llm.default_model,
+            temperature=0.1  # Lower temperature for more factual responses
         )
         
         return response.strip()

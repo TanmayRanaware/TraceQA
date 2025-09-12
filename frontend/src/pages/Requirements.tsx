@@ -59,11 +59,13 @@ type EvidenceAnalysis = {
 type FactCheckResults = {
   journey: string;
   claim: string;
+  answer?: string;
+  confidence?: number;
+  sources_used?: number;
   evidence: Array<{
-    chunk: string;
+    text: string;
     metadata: any;
     score: number;
-    relevance: string;
   }>;
   evidence_analysis: EvidenceAnalysis;
 };
@@ -357,37 +359,79 @@ const Requirements: React.FC = () => {
                 Fact Check Results
               </Typography>
               
-              <Box sx={{ mb: 2 }}>
+              <Box sx={{ mb: 3 }}>
                 <Typography variant="body2" color="text.secondary" gutterBottom>
-                  Claim: {factCheckClaim}
+                  Question: {factCheckClaim}
                 </Typography>
-                <Chip
-                  label={`Evidence Strength: ${factCheckResults.evidence_analysis?.strength ?? 'n/a'}`}
-                  color={factCheckResults.evidence_analysis?.strength === 'strong' ? 'success' : 'warning'}
-                  sx={{ mr: 1 }}
-                />
-                <Chip
-                  label={`Confidence: ${((factCheckResults.evidence_analysis?.confidence ?? 0) * 100).toFixed(1)}%`}
-                  variant="outlined"
-                />
+                <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+                  <Chip
+                    label={`Confidence: ${((factCheckResults.confidence ?? 0) * 100).toFixed(1)}%`}
+                    color={(factCheckResults.confidence ?? 0) > 0.7 ? 'success' : (factCheckResults.confidence ?? 0) > 0.4 ? 'warning' : 'error'}
+                  />
+                  <Chip
+                    label={`Sources: ${factCheckResults.sources_used ?? 0}`}
+                    variant="outlined"
+                  />
+                </Box>
               </Box>
-              
-              <Typography variant="h6" sx={{ mb: 2 }}>
-                Evidence Sources
-              </Typography>
-              
-              {factCheckResults.evidence?.map((evidence: any, index: number) => (
-                <Paper key={index} sx={{ p: 2, mb: 1 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                    <Typography variant="body2">
-                      Relevance Score: {(evidence.score * 100).toFixed(1)}%
-                    </Typography>
-                  </Box>
-                  <Typography variant="body2">
-                    {evidence.text}
+
+              {/* Main Answer Section */}
+              {factCheckResults.answer && (
+                <Paper sx={{ p: 3, mb: 3, backgroundColor: 'primary.main', color: 'primary.contrastText' }}>
+                  <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <FactCheck />
+                    Answer from Documents
+                  </Typography>
+                  <Typography variant="body1" sx={{ whiteSpace: 'pre-line', lineHeight: 1.6 }}>
+                    {factCheckResults.answer}
                   </Typography>
                 </Paper>
-              ))}
+              )}
+              
+              {/* Evidence Sources - Collapsible */}
+              {factCheckResults.evidence && factCheckResults.evidence.length > 0 && (
+                <Box>
+                  <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Description />
+                    Supporting Evidence ({factCheckResults.evidence.length} sources)
+                  </Typography>
+                  
+                  {factCheckResults.evidence.slice(0, 3).map((evidence: any, index: number) => (
+                    <Paper key={index} sx={{ p: 2, mb: 2, border: '1px solid', borderColor: 'divider' }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                        <Chip
+                          label={evidence.metadata?.source_type || 'Unknown'}
+                          size="small"
+                          variant="outlined"
+                        />
+                        <Typography variant="caption" color="text.secondary">
+                          Version: {evidence.metadata?.version || 'Unknown'}
+                        </Typography>
+                      </Box>
+                      <Typography variant="body2" sx={{ 
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        display: '-webkit-box',
+                        WebkitLineClamp: 4,
+                        WebkitBoxOrient: 'vertical',
+                      }}>
+                        {evidence.text}
+                      </Typography>
+                      {evidence.metadata?.document_uri && (
+                        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                          Source: {evidence.metadata.document_uri.split('/').pop()}
+                        </Typography>
+                      )}
+                    </Paper>
+                  ))}
+
+                  {factCheckResults.evidence.length > 3 && (
+                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', mt: 1 }}>
+                      ... and {factCheckResults.evidence.length - 3} more evidence sources
+                    </Typography>
+                  )}
+                </Box>
+              )}
             </CardContent>
           </Card>
         )}
