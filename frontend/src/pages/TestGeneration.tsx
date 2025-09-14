@@ -25,6 +25,7 @@ import {
   Settings,
   Download,
   TableView,
+  Refresh,
 } from '@mui/icons-material';
 import { DataGrid, GridColDef, GridRenderCellParams, GridValueGetterParams } from '@mui/x-data-grid';
 import axios from 'axios';
@@ -52,21 +53,37 @@ const TestGeneration: React.FC = () => {
   const [journeys, setJourneys] = useState<string[]>([]);
   const providers = ['claude', 'gemini', 'ollama', 'openai'];
 
-  // Fetch journeys on component mount
+  // Fetch journeys on component mount - only those with uploaded documents
   useEffect(() => {
     const fetchJourneys = async () => {
       try {
-        const response = await axios.get('/api/journeys/names');
-        setJourneys(response.data.journey_names);
+        // Fetch only journeys that have uploaded documents
+        const response = await axios.get('/requirements/versions');
+        const journeysWithDocs = response.data.versions.map((v: any) => v.journey);
+        setJourneys(journeysWithDocs);
       } catch (err) {
         console.error('Failed to fetch journeys:', err);
-        // Fallback to default journeys
-        setJourneys(['Point of Settlement', 'Payment Processing', 'Account Management']);
+        // Fallback to empty array if no documents uploaded
+        setJourneys([]);
       }
     };
 
     fetchJourneys();
   }, []);
+
+  // Refresh journeys function
+  const refreshJourneys = async () => {
+    try {
+      // Fetch only journeys that have uploaded documents
+      const response = await axios.get('/requirements/versions');
+      const journeysWithDocs = response.data.versions.map((v: any) => v.journey);
+      setJourneys(journeysWithDocs);
+    } catch (err) {
+      console.error('Failed to refresh journeys:', err);
+      setJourneys([]);
+    }
+  };
+
   const models = {
     claude: ['claude-3-5-haiku-20241022', 'claude-3-haiku-20240307'],
     gemini: ['gemini-2.0-flash', 'gemini-1.5-pro'],
@@ -404,20 +421,31 @@ const TestGeneration: React.FC = () => {
                 Configuration
               </Typography>
 
-              <FormControl fullWidth sx={{ mb: 2 }}>
-                <InputLabel>Journey</InputLabel>
-                <Select
-                  value={selectedJourney}
-                  label="Journey"
-                  onChange={(e: SelectChangeEvent) => setSelectedJourney(e.target.value)}
+              <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+                <FormControl fullWidth>
+                  <InputLabel>Journey</InputLabel>
+                  <Select
+                    value={selectedJourney}
+                    label="Journey"
+                    onChange={(e: SelectChangeEvent) => setSelectedJourney(e.target.value)}
+                  >
+                    {journeys.map((journey) => (
+                      <MenuItem key={journey} value={journey}>
+                        {journey}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <Button
+                  variant="outlined"
+                  startIcon={<Refresh />}
+                  onClick={refreshJourneys}
+                  sx={{ minWidth: 'auto', px: 2 }}
+                  title="Refresh journeys with uploaded documents"
                 >
-                  {journeys.map((journey) => (
-                    <MenuItem key={journey} value={journey}>
-                      {journey}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+                  Refresh
+                </Button>
+              </Box>
 
               <TextField
                 fullWidth
