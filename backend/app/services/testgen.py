@@ -161,9 +161,9 @@ class TestGenerator:
             context_parts.append(f"Version: {doc_info['version']}")
             context_parts.append("Content Excerpts:")
             
-            # Add document chunks (limit to prevent overwhelming the LLM)
-            for j, chunk in enumerate(doc_info['chunks'][:3], 1):
-                context_parts.append(f"  {j}. {chunk[:500]}...")
+            # Add document chunks (use more content for better context)
+            for j, chunk in enumerate(doc_info['chunks'][:5], 1):  # Increased from 3 to 5
+                context_parts.append(f"  {j}. {chunk[:1000]}...")  # Increased from 500 to 1000
             
             context_parts.append("-" * 50)
         
@@ -236,8 +236,15 @@ Generate ALL {max_cases} unique test cases now - do not truncate the response:
             
             # Check if we got the expected number of test cases
             if len(test_cases) < max_cases * 0.8:  # If we got less than 80% of requested
-                print(f"Warning: Only got {len(test_cases)} test cases, expected {max_cases}. Using fallback for better coverage.")
-                return self._generate_fallback_tests(journey, max_cases, context)
+                print(f"Warning: Only got {len(test_cases)} test cases, expected {max_cases}.")
+                
+                # If we have good context, generate fewer but more relevant test cases
+                if len(context) > 500:  # Lowered threshold for context-based generation
+                    print(f"Good context available ({len(context)} chars). Generating context-based test cases.")
+                    return self._generate_context_based_tests(journey, min(len(test_cases) * 2, max_cases), context)
+                else:
+                    print("Limited context available. Using fallback for better coverage.")
+                    return self._generate_fallback_tests(journey, max_cases, context)
             
             return test_cases
         else:
@@ -449,6 +456,109 @@ Generate ALL {max_cases} unique test cases now - do not truncate the response:
             test_cases.append(test_case)
         
         print(f"Generated {len(test_cases)} diverse fallback test cases")
+        return test_cases
+
+    def _generate_context_based_tests(self, journey: str, max_cases: int, context: str) -> List[Dict[str, Any]]:
+        """Generate test cases based on actual document context"""
+        print(f"Generating {max_cases} context-based test cases for journey: {journey}")
+        test_cases = []
+        
+        # Extract key information from context
+        context_lower = context.lower()
+        
+        # Identify key processes and requirements from context
+        processes = []
+        if 'application' in context_lower:
+            processes.append('Application Process')
+        if 'credit' in context_lower:
+            processes.append('Credit Assessment')
+        if 'risk' in context_lower:
+            processes.append('Risk Assessment')
+        if 'approval' in context_lower:
+            processes.append('Approval Process')
+        if 'document' in context_lower:
+            processes.append('Document Verification')
+        if 'payment' in context_lower:
+            processes.append('Payment Processing')
+        
+        # Generate test cases based on identified processes
+        for i in range(1, max_cases + 1):
+            # Determine test type distribution
+            if i <= int(max_cases * 0.6):
+                test_type = "positive"
+                priority = "High" if i <= int(max_cases * 0.2) else "Medium"
+            elif i <= int(max_cases * 0.85):
+                test_type = "negative"
+                priority = "High" if i <= int(max_cases * 0.75) else "Medium"
+            else:
+                test_type = "edge"
+                priority = "Medium"
+            
+            # Select a process for this test case
+            process = processes[i % len(processes)] if processes else "General Process"
+            
+            # Generate context-specific test case
+            if test_type == "positive":
+                test_case = {
+                    "test_case_name": f"Valid {process} - {journey} Journey",
+                    "preconditions": f"User has valid credentials and {process.lower()} requirements are met",
+                    "steps": [
+                        f"Access {journey} system for {process.lower()}",
+                        f"Enter valid data for {process.lower()}",
+                        f"Submit {process.lower()} request",
+                        f"Verify {process.lower()} completes successfully"
+                    ],
+                    "expected_result": f"{process} completes successfully with expected output",
+                    "actual_result": "",
+                    "test_type": test_type,
+                    "test_case_id": f"TC{i:03d}",
+                    "priority": priority,
+                    "journey": journey,
+                    "requirement_reference": f"REQ-{i:03d}",
+                    "status": "Draft"
+                }
+            elif test_type == "negative":
+                test_case = {
+                    "test_case_name": f"Invalid {process} - {journey} Journey",
+                    "preconditions": f"User attempting {process.lower()} with invalid data",
+                    "steps": [
+                        f"Access {journey} system for {process.lower()}",
+                        f"Enter invalid data for {process.lower()}",
+                        f"Submit {process.lower()} request",
+                        f"Observe system error handling"
+                    ],
+                    "expected_result": f"System displays appropriate error for invalid {process.lower()}",
+                    "actual_result": "",
+                    "test_type": test_type,
+                    "test_case_id": f"TC{i:03d}",
+                    "priority": priority,
+                    "journey": journey,
+                    "requirement_reference": f"REQ-{i:03d}",
+                    "status": "Draft"
+                }
+            else:  # edge case
+                test_case = {
+                    "test_case_name": f"Edge Case {process} - {journey} Journey",
+                    "preconditions": f"System under edge conditions for {process.lower()}",
+                    "steps": [
+                        f"Access {journey} system for {process.lower()}",
+                        f"Test boundary conditions for {process.lower()}",
+                        f"Submit edge case {process.lower()} request",
+                        f"Verify system handles edge case correctly"
+                    ],
+                    "expected_result": f"{process} handles edge case appropriately",
+                    "actual_result": "",
+                    "test_type": test_type,
+                    "test_case_id": f"TC{i:03d}",
+                    "priority": priority,
+                    "journey": journey,
+                    "requirement_reference": f"REQ-{i:03d}",
+                    "status": "Draft"
+                }
+            
+            test_cases.append(test_case)
+        
+        print(f"Generated {len(test_cases)} context-based test cases")
         return test_cases
     
     async def validate_and_update_test_cases(
