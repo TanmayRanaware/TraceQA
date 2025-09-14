@@ -21,7 +21,6 @@ import {
   Description as RequirementsIcon,
   BugReport as TestIcon,
   Upload as UploadIcon,
-  AccountBalance as BankIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 
@@ -57,19 +56,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   };
 
   const drawer = (
-    <Box>
+    <Box sx={{ backgroundColor: '#1f2937', height: '100%' }}>
       <Box sx={{ p: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
-        <BankIcon sx={{ fontSize: 32, color: 'primary.main' }} />
         <Box>
-          <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
-            Enterprise Requirements AI
+          <Typography variant="h4" sx={{ fontWeight: 700, color: '#f9fafb' }}>
+            TraceQA
           </Typography>
-          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-            Banking & Financial Services
+          <Typography variant="caption" sx={{ color: '#d1d5db' }}>
+            Intelligent Tracking Agent
           </Typography>
         </Box>
       </Box>
-      <Divider />
+      <Divider sx={{ borderColor: '#374151' }} />
       <List sx={{ pt: 2 }}>
         {menuItems.map((item) => (
           <ListItem key={item.text} disablePadding>
@@ -80,18 +78,22 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 mx: 2,
                 borderRadius: 2,
                 mb: 1,
+                color: '#f9fafb',
                 '&.Mui-selected': {
-                  backgroundColor: 'primary.light',
-                  color: 'primary.contrastText',
+                  backgroundColor: '#3b82f6',
+                  color: '#ffffff',
                   '&:hover': {
-                    backgroundColor: 'primary.main',
+                    backgroundColor: '#2563eb',
                   },
                   '& .MuiListItemIcon-root': {
-                    color: 'primary.contrastText',
+                    color: '#ffffff',
                   },
                 },
                 '&:hover': {
-                  backgroundColor: 'action.hover',
+                  backgroundColor: '#374151',
+                },
+                '& .MuiListItemIcon-root': {
+                  color: '#d1d5db',
                 },
               }}
             >
@@ -113,9 +115,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         sx={{
           width: { md: `calc(100% - ${drawerWidth}px)` },
           ml: { md: `${drawerWidth}px` },
-          backgroundColor: 'white',
-          color: 'text.primary',
-          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+          backgroundColor: '#4b5563',
+          color: '#f9fafb',
+          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.3)',
         }}
       >
         <Toolbar>
@@ -124,11 +126,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             aria-label="open drawer"
             edge="start"
             onClick={handleDrawerToggle}
-            sx={{ mr: 2, display: { md: 'none' } }}
+            sx={{ mr: 2, display: { md: 'none' }, color: '#f9fafb' }}
           >
             <MenuIcon />
           </IconButton>
-          <Typography variant="h6" noWrap component="div" sx={{ color: 'text.primary' }}>
+          <Typography variant="h6" noWrap component="div" sx={{ color: '#f9fafb' }}>
             {menuItems.find(item => item.path === location.pathname)?.text || 'Dashboard'}
           </Typography>
         </Toolbar>
@@ -151,7 +153,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             '& .MuiDrawer-paper': {
               boxSizing: 'border-box',
               width: drawerWidth,
-              backgroundColor: 'background.paper',
+              backgroundColor: '#1f2937',
             },
           }}
         >
@@ -166,9 +168,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             '& .MuiDrawer-paper': {
               boxSizing: 'border-box',
               width: drawerWidth,
-              backgroundColor: 'background.paper',
+              backgroundColor: '#1f2937',
               borderRight: '1px solid',
-              borderColor: 'divider',
+              borderColor: '#374151',
             },
           }}
           open
