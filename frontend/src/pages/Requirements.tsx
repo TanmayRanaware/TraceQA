@@ -219,7 +219,7 @@ const Requirements: React.FC = () => {
             <Box sx={{ flex: '1 1 300px', minWidth: '250px' }}>
               <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
                 <FormControl fullWidth>
-                  <InputLabel id="journey-select-label">Journey</InputLabel>
+                  <InputLabel id="journey-select-label" shrink={true}>Journey</InputLabel>
                   <Select
                     labelId="journey-select-label"
                     value={selectedJourney}
@@ -229,9 +229,16 @@ const Requirements: React.FC = () => {
                     displayEmpty
                     renderValue={(selected) => {
                       if (!selected) {
-                        return <em>Select Journey</em>;
+                        return <em style={{ color: '#999' }}>Select Journey</em>;
                       }
                       return selected;
+                    }}
+                    sx={{
+                      '& .MuiSelect-select': {
+                        display: 'flex',
+                        alignItems: 'center',
+                        minHeight: '1.4375em'
+                      }
                     }}
                   >
                     <MenuItem value="" disabled>
