@@ -508,12 +508,3 @@ curl -X POST "http://localhost:8000/api/background/document-cleanup?journey=Poin
 ## 📄 License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🆘 Support
-
-For enterprise support and customizations, please contact the development team.
-
----
-
-**Built for Enterprise Banking Compliance and Efficiency** 🏦✨
-# TraceQ
