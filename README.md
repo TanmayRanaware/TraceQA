@@ -24,13 +24,96 @@ Enterprise banking projects face several challenges:
 
 ### Data Flow
 
+```mermaid
+graph TB
+    %% Input Layer
+    subgraph "📄 Document Input"
+        A[PDF/DOCX Files] --> B[Document Upload API]
+        B --> C[Text Extraction Service]
+    end
+    
+    %% Processing Layer
+    subgraph "🔄 Processing Pipeline"
+        C --> D[Document Chunking]
+        D --> E[Embedding Generation]
+        E --> F[Vector Database Storage]
+        F --> G[Version Control System]
+    end
+    
+    %% AI Layer
+    subgraph "🤖 AI Services"
+        H[LLM Provider<br/>Claude/Gemini/OpenAI/Ollama]
+        I[RAG Service]
+        J[Test Generation Engine]
+        K[Change Analysis Engine]
+    end
+    
+    %% Storage Layer
+    subgraph "💾 Data Storage"
+        F --> L[Pinecone Vector DB]
+        G --> M[Timeline Storage]
+        N[Document Metadata]
+        O[Test Case Repository]
+    end
+    
+    %% Output Layer
+    subgraph "📊 Output & Analytics"
+        P[Generated Test Cases]
+        Q[Change Impact Reports]
+        R[Fact-Checking Results]
+        S[Timeline Visualization]
+    end
+    
+    %% User Interface
+    subgraph "👥 User Interface"
+        T[Web Dashboard]
+        U[API Endpoints]
+        V[Background Jobs]
+    end
+    
+    %% Connections
+    B --> T
+    I --> F
+    I --> H
+    J --> H
+    J --> I
+    K --> H
+    K --> I
+    
+    J --> P
+    K --> Q
+    I --> R
+    G --> S
+    
+    T --> U
+    U --> V
+    
+    %% Styling
+    classDef inputStyle fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    classDef processStyle fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef aiStyle fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    classDef storageStyle fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px
+    classDef outputStyle fill:#fce4ec,stroke:#880e4f,stroke-width:2px
+    classDef uiStyle fill:#f1f8e9,stroke:#33691e,stroke-width:2px
+    
+    class A,B,C inputStyle
+    class D,E,F,G processStyle
+    class H,I,J,K aiStyle
+    class L,M,N,O storageStyle
+    class P,Q,R,S outputStyle
+    class T,U,V uiStyle
 ```
-Document Upload → Text Extraction → Chunking → Embedding → RAG Index
-                                 ↓
-                            Versioning → Timeline → Change Analysis
-                                 ↓
-                            Test Generation ← Context Retrieval
-```
+
+### System Architecture Overview
+
+The system follows a modern microservices architecture with clear separation of concerns:
+
+1. **📄 Document Ingestion**: Multi-format document processing with automatic text extraction
+2. **🔄 Processing Pipeline**: Intelligent chunking, embedding generation, and vector storage
+3. **🤖 AI Services**: Flexible LLM integration with RAG-powered context retrieval
+4. **💾 Data Storage**: Scalable vector database with version control and metadata tracking
+5. **📊 Output & Analytics**: Comprehensive reporting and visualization capabilities
+6. **👥 User Interface**: RESTful APIs with real-time dashboard and background processing
 
 ## 🚀 Features
 
