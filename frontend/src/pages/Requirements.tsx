@@ -152,7 +152,11 @@ const Requirements: React.FC = () => {
     try {
       setLoading(true);
       const response = await axios.get(`/requirements/timeline/${encodeURIComponent(selectedJourney)}`);
-      setTimelineData(response.data.timeline || []);
+      console.log('Timeline API response:', response.data);
+      // Handle nested timeline structure
+      const timeline = response.data.timeline?.timeline || response.data.timeline || [];
+      console.log('Processed timeline data:', timeline);
+      setTimelineData(timeline);
     } catch (err) {
       setError('Failed to fetch timeline');
       console.error('Timeline error:', err);
