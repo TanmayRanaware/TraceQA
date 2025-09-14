@@ -20,7 +20,6 @@ import {
   Dashboard as DashboardIcon,
   Description as RequirementsIcon,
   BugReport as TestIcon,
-  Schedule as BackgroundIcon,
   Upload as UploadIcon,
   Business as JourneyIcon,
   AccountBalance as BankIcon,
@@ -44,7 +43,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { text: 'Dashboard', icon: <DashboardIcon />, path: '/' },
     { text: 'Requirements', icon: <RequirementsIcon />, path: '/requirements' },
     { text: 'Test Generation', icon: <TestIcon />, path: '/test-generation' },
-    { text: 'Background Tasks', icon: <BackgroundIcon />, path: '/background-tasks' },
     { text: 'Document Upload', icon: <UploadIcon />, path: '/document-upload' },
     { text: 'Journey Management', icon: <JourneyIcon />, path: '/journey-management' },
   ];

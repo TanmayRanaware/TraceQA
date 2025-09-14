@@ -6,7 +6,6 @@ import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Requirements from './pages/Requirements';
 import TestGeneration from './pages/TestGeneration';
-import BackgroundTasks from './pages/BackgroundTasks';
 import DocumentUpload from './pages/DocumentUpload';
 import JourneyManager from './components/JourneyManager';
 import { ConfigProvider } from './contexts/ConfigContext';
@@ -76,7 +75,6 @@ function App() {
               <Route path="/" element={<Dashboard />} />
               <Route path="/requirements" element={<Requirements />} />
               <Route path="/test-generation" element={<TestGeneration />} />
-              <Route path="/background-tasks" element={<BackgroundTasks />} />
               <Route path="/document-upload" element={<DocumentUpload />} />
               <Route path="/journey-management" element={<JourneyManager />} />
             </Routes>
