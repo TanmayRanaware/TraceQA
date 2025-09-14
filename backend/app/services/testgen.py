@@ -1,5 +1,6 @@
 import os
 import json
+import re
 from typing import List, Dict, Any
 from fastapi import HTTPException
 from ..providers.provider_factory import get_provider
@@ -180,117 +181,223 @@ class TestGenerator:
         model: str,
         temperature: float
     ) -> List[Dict[str, Any]]:
-        """Generate test cases using LLM with positive, negative, and edge cases"""
+        """Generate test cases using LLM with improved parsing"""
+        # Create a more specific prompt for better JSON generation
         prompt = f"""
-        You are a QA Engineer creating comprehensive test cases STRICTLY based on the uploaded requirements documents provided below. 
-        
-        IMPORTANT CONSTRAINTS:
-        - Generate test cases ONLY from the specific requirements, specifications, and business rules found in the uploaded documents
-        - DO NOT create generic test cases or assumptions beyond what is documented
-        - Each test case must be traceable to specific requirements mentioned in the documents
-        - Generate a balanced mix of POSITIVE, NEGATIVE, and EDGE cases based on documented requirements
-        - If insufficient information is available in the documents, generate fewer but more accurate test cases
-        
-        Generate {max_cases} comprehensive test cases for the {journey} journey based EXCLUSIVELY on the following uploaded documents:
-        
-        {context}
-        
-        TEST CASE DISTRIBUTION:
-        - 60% POSITIVE cases: Normal, expected behavior based on requirements
-        - 25% NEGATIVE cases: Error conditions, invalid inputs, failure scenarios
-        - 15% EDGE cases: Boundary conditions, extreme values, unusual but valid scenarios
-        
-        Each test case must include the REQUIRED STRUCTURED FORMAT:
-        1. test_case_name: Clear, descriptive name based on specific requirements
-        2. preconditions: What must be established before testing (based on document requirements)
-        3. steps: Detailed step-by-step procedure derived from documented workflows
-        4. expected_result: Expected outcome based on documented behavior
-        5. actual_result: Leave empty for new test cases
-        6. test_type: "positive", "negative", or "edge"
-        7. test_case_id: Unique identifier (TC001, TC002, etc.)
-        8. priority: "High", "Medium", or "Low" based on requirement criticality
-        9. journey: "{journey}"
-        10. requirement_reference: Specific requirement or section reference from documents
-        11. status: "Draft" for new test cases
-        
-        Generate the test cases in JSON format:
-        [
-            {{
-                "test_case_name": "[Descriptive name based on specific requirement]",
-                "preconditions": "[Prerequisites based on documented requirements]",
-                "steps": "[Step-by-step procedure from documented workflows]",
-                "expected_result": "[Expected outcome based on documented behavior]",
-                "actual_result": "",
-                "test_type": "positive|negative|edge",
-                "test_case_id": "TC001",
-                "priority": "High|Medium|Low",
-                "journey": "{journey}",
-                "requirement_reference": "[Specific requirement reference from documents]",
-                "status": "Draft"
-            }}
-        ]
-        
-        FOCUS AREAS FOR EACH TEST TYPE:
-        
-        POSITIVE CASES (60%):
-        - Normal user workflows as described in requirements
-        - Valid input scenarios with expected outputs
-        - Happy path scenarios for each documented feature
-        - Standard business processes and validations
-        
-        NEGATIVE CASES (25%):
-        - Invalid input handling as specified in requirements
-        - Error conditions explicitly mentioned in documents
-        - Failure scenarios and error recovery procedures
-        - Security and validation failures
-        - System limitations and constraints
-        
-        EDGE CASES (15%):
-        - Boundary values and limits mentioned in requirements
-        - Extreme but valid input scenarios
-        - Unusual but acceptable user behaviors
-        - Performance edge cases
-        - Integration boundary conditions
-        
-        Focus ONLY on what is explicitly documented:
-        - Functional requirements and business rules mentioned in the documents
-        - Workflows and processes described in the uploaded requirements
-        - Validation rules and error conditions specified in the documents
-        - Integration points and dependencies mentioned in the requirements
-        - Compliance and regulatory requirements explicitly stated in the documents
-        
-        REMEMBER: Generate test cases only from the uploaded document content provided above. Do not add generic test scenarios.
-        """
-        
+You are a test case generation expert. Generate {max_cases} unique test cases for the journey: "{journey}".
+
+Context from requirements documents:
+{context}
+
+IMPORTANT INSTRUCTIONS:
+1. Generate EXACTLY {max_cases} test cases
+2. Each test case must be UNIQUE and different from others
+3. Include diverse scenarios: positive, negative, and edge cases
+4. Base test cases on the actual context provided
+5. Use specific, realistic test scenarios
+6. Avoid generic or repetitive test cases
+
+Return ONLY a valid JSON array with this exact structure:
+[
+  {{
+    "test_case_name": "Specific test case name",
+    "preconditions": "Specific preconditions",
+    "steps": ["Step 1", "Step 2", "Step 3"],
+    "expected_result": "Specific expected result",
+    "actual_result": "",
+    "test_type": "positive|negative|edge",
+    "test_case_id": "TC001",
+    "priority": "High|Medium|Low",
+    "journey": "{journey}",
+    "requirement_reference": "REQ-001",
+    "status": "Draft"
+  }}
+]
+
+Generate {max_cases} unique test cases now:
+"""
+
         response = self.llm_provider.complete(
             [{"role": "user", "content": prompt}],
             model=model,
             temperature=temperature
         )
         
-        # Try to parse JSON response
+        print(f"LLM Response received: {len(response)} characters")
+        print(f"Response preview: {response[:200]}...")
+        
+        # Multiple parsing attempts with different methods
+        test_cases = self._parse_llm_response(response, max_cases)
+        
+        if test_cases and len(test_cases) > 0:
+            print(f"Successfully parsed {len(test_cases)} test cases from LLM response")
+            return test_cases
+        else:
+            print("Failed to parse test cases from LLM response, using fallback")
+            return self._generate_fallback_tests(journey, max_cases, context)
+
+    def _parse_llm_response(self, response: str, max_cases: int) -> List[Dict[str, Any]]:
+        """Parse LLM response with multiple extraction methods"""
+        test_cases = []
+        
+        # Method 1: Direct JSON parsing
         try:
-            # Find JSON array in response - improved regex to handle nested structures
-            import re
-            json_match = re.search(r'\[[\s\S]*?\]', response, re.DOTALL)
-            if json_match:
-                json_str = json_match.group()
+            test_cases = json.loads(response)
+            if self._validate_test_cases(test_cases, max_cases):
+                print("Method 1: Direct JSON parsing successful")
+                return test_cases
+        except Exception as e:
+            print(f"Method 1 failed: {str(e)}")
+        
+        # Method 2: Extract JSON array with improved regex
+        try:
+            # More robust regex patterns
+            patterns = [
+                r'\[[\s\S]*?\]',  # Original pattern
+                r'```json\s*(\[[\s\S]*?\])\s*```',  # JSON code block
+                r'```\s*(\[[\s\S]*?\])\s*```',  # Generic code block
+                r'(\[[\s\S]*?\])',  # Any array-like structure
+            ]
+            
+            for i, pattern in enumerate(patterns):
+                try:
+                    json_match = re.search(pattern, response, re.DOTALL)
+                    if json_match:
+                        json_str = json_match.group(1) if json_match.groups() else json_match.group()
+                        test_cases = json.loads(json_str)
+                        if self._validate_test_cases(test_cases, max_cases):
+                            print(f"Method 2.{i+1}: Regex pattern {i+1} successful")
+                            return test_cases
+                except Exception as e:
+                    print(f"Method 2.{i+1} failed: {str(e)}")
+                    continue
+        except Exception as e:
+            print(f"Method 2 failed: {str(e)}")
+        
+        # Method 3: Line-by-line JSON extraction
+        try:
+            lines = response.split('\n')
+            json_start = -1
+            json_end = -1
+            
+            for i, line in enumerate(lines):
+                if line.strip().startswith('['):
+                    json_start = i
+                elif line.strip().endswith(']') and json_start != -1:
+                    json_end = i
+                    break
+            
+            if json_start != -1 and json_end != -1:
+                json_lines = lines[json_start:json_end + 1]
+                json_str = '\n'.join(json_lines)
                 test_cases = json.loads(json_str)
-                if isinstance(test_cases, list) and len(test_cases) > 0:
-                    print(f"Successfully parsed {len(test_cases)} test cases from LLM response")
+                if self._validate_test_cases(test_cases, max_cases):
+                    print("Method 3: Line-by-line extraction successful")
                     return test_cases
         except Exception as e:
-            print(f"JSON parsing failed: {str(e)}")
-            print(f"Response preview: {response[:500]}...")
-            pass
+            print(f"Method 3 failed: {str(e)}")
         
-        # Fallback: generate structured test cases manually
-        return self._generate_fallback_tests(journey, max_cases, context)
+        # Method 4: Extract and clean JSON manually
+        try:
+            # Find the first '[' and last ']'
+            start_idx = response.find('[')
+            end_idx = response.rfind(']')
+            
+            if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+                json_str = response[start_idx:end_idx + 1]
+                # Clean up common issues
+                json_str = json_str.replace('```json', '').replace('```', '')
+                json_str = json_str.strip()
+                
+                test_cases = json.loads(json_str)
+                if self._validate_test_cases(test_cases, max_cases):
+                    print("Method 4: Manual extraction successful")
+                    return test_cases
+        except Exception as e:
+            print(f"Method 4 failed: {str(e)}")
+        
+        print("All parsing methods failed")
+        return []
+
+    def _validate_test_cases(self, test_cases: List[Dict[str, Any]], max_cases: int) -> bool:
+        """Validate that parsed test cases are valid and unique"""
+        if not isinstance(test_cases, list):
+            print("Validation failed: Not a list")
+            return False
+        
+        if len(test_cases) == 0:
+            print("Validation failed: Empty list")
+            return False
+        
+        if len(test_cases) > max_cases * 2:  # Allow some flexibility
+            print(f"Validation failed: Too many test cases ({len(test_cases)} > {max_cases * 2})")
+            return False
+        
+        # Check for required fields
+        required_fields = ['test_case_name', 'preconditions', 'steps', 'expected_result']
+        for i, test_case in enumerate(test_cases):
+            if not isinstance(test_case, dict):
+                print(f"Validation failed: Test case {i} is not a dict")
+                return False
+            
+            for field in required_fields:
+                if field not in test_case:
+                    print(f"Validation failed: Test case {i} missing field '{field}'")
+                    return False
+        
+        # Check for uniqueness (basic check)
+        test_names = [tc.get('test_case_name', '') for tc in test_cases]
+        if len(test_names) != len(set(test_names)):
+            print("Validation failed: Duplicate test case names found")
+            return False
+        
+        print(f"Validation passed: {len(test_cases)} valid test cases")
+        return True
     
     def _generate_fallback_tests(self, journey: str, max_cases: int, context: str) -> List[Dict[str, Any]]:
-        """Generate fallback test cases if LLM parsing fails"""
+        """Generate fallback test cases if LLM parsing fails - with improved diversity"""
         print(f"Generating {max_cases} fallback test cases for journey: {journey}")
         test_cases = []
+        
+        # Define diverse test scenarios based on journey type
+        positive_scenarios = [
+            "Successful user registration and login",
+            "Valid data entry and form submission",
+            "Successful file upload and processing",
+            "Correct data validation and storage",
+            "Proper user authentication and authorization",
+            "Successful transaction processing",
+            "Valid search and retrieval operations",
+            "Correct data export functionality",
+            "Successful notification delivery",
+            "Proper error handling and recovery"
+        ]
+        
+        negative_scenarios = [
+            "Invalid input data validation",
+            "Authentication failure handling",
+            "Authorization error scenarios",
+            "Network timeout and connection issues",
+            "Invalid file format rejection",
+            "Database constraint violations",
+            "API rate limiting responses",
+            "Malformed request handling",
+            "Session expiration handling",
+            "Resource not found errors"
+        ]
+        
+        edge_scenarios = [
+            "Maximum data limit boundary testing",
+            "Concurrent user session handling",
+            "Large file upload processing",
+            "Unicode and special character handling",
+            "Timezone and date boundary testing",
+            "Memory and performance limits",
+            "Integration point failures",
+            "Data migration edge cases",
+            "Cross-browser compatibility issues",
+            "Mobile device specific scenarios"
+        ]
         
         # Generate test cases based on the requested max_cases
         for i in range(1, max_cases + 1):
@@ -298,75 +405,42 @@ class TestGenerator:
             if i <= int(max_cases * 0.6):
                 test_type = "positive"
                 priority = "High" if i <= int(max_cases * 0.2) else "Medium"
+                scenario_index = (i - 1) % len(positive_scenarios)
+                scenario = positive_scenarios[scenario_index]
             elif i <= int(max_cases * 0.85):
                 test_type = "negative"
                 priority = "High" if i <= int(max_cases * 0.75) else "Medium"
+                scenario_index = (i - int(max_cases * 0.6) - 1) % len(negative_scenarios)
+                scenario = negative_scenarios[scenario_index]
             else:
                 test_type = "edge"
                 priority = "Medium"
+                scenario_index = (i - int(max_cases * 0.85) - 1) % len(edge_scenarios)
+                scenario = edge_scenarios[scenario_index]
             
-            # Generate test case based on type
-            if test_type == "positive":
-                test_case = {
-                    "test_case_name": f"Valid {journey} Operation - Test Case {i}",
-                    "preconditions": f"User is logged in and has access to {journey} functionality",
-                    "steps": [
-                        f"Navigate to {journey} section",
-                        f"Enter valid {journey} data",
-                        f"Submit {journey} request",
-                        f"Verify {journey} processing completes"
-                    ],
-                    "expected_result": f"{journey} operation completes successfully with expected output",
-                    "actual_result": "",
-                    "test_type": test_type,
-                    "test_case_id": f"TC{i:03d}",
-                    "priority": priority,
-                    "journey": journey,
-                    "requirement_reference": f"REQ-{i:03d}",
-                    "status": "Draft"
-                }
-            elif test_type == "negative":
-                test_case = {
-                    "test_case_name": f"Invalid {journey} Input - Test Case {i}",
-                    "preconditions": f"User is logged in and attempting {journey} operation",
-                    "steps": [
-                        f"Navigate to {journey} section",
-                        f"Enter invalid {journey} data",
-                        f"Submit {journey} request",
-                        f"Observe system response"
-                    ],
-                    "expected_result": f"System displays appropriate error message for invalid {journey} input",
-                    "actual_result": "",
-                    "test_type": test_type,
-                    "test_case_id": f"TC{i:03d}",
-                    "priority": priority,
-                    "journey": journey,
-                    "requirement_reference": f"REQ-{i:03d}",
-                    "status": "Draft"
-                }
-            else:  # edge case
-                test_case = {
-                    "test_case_name": f"Edge Case {journey} Scenario - Test Case {i}",
-                    "preconditions": f"User is logged in and {journey} system is under edge conditions",
-                    "steps": [
-                        f"Navigate to {journey} section",
-                        f"Enter boundary value {journey} data",
-                        f"Submit {journey} request",
-                        f"Verify {journey} handles edge case correctly"
-                    ],
-                    "expected_result": f"{journey} operation handles edge case appropriately",
-                    "actual_result": "",
-                    "test_type": test_type,
-                    "test_case_id": f"TC{i:03d}",
-                    "priority": priority,
-                    "journey": journey,
-                    "requirement_reference": f"REQ-{i:03d}",
-                    "status": "Draft"
-                }
+            # Generate unique test case based on scenario
+            test_case = {
+                "test_case_name": f"{journey} - {scenario}",
+                "preconditions": f"System is operational and user has appropriate access for {journey} functionality",
+                "steps": [
+                    f"Access {journey} system interface",
+                    f"Prepare test data for {scenario.lower()}",
+                    f"Execute {scenario.lower()} test scenario",
+                    f"Verify system response and behavior"
+                ],
+                "expected_result": f"System behaves correctly for {scenario.lower()} in {journey} context",
+                "actual_result": "",
+                "test_type": test_type,
+                "test_case_id": f"TC{i:03d}",
+                "priority": priority,
+                "journey": journey,
+                "requirement_reference": f"REQ-{i:03d}",
+                "status": "Draft"
+            }
             
             test_cases.append(test_case)
         
-        print(f"Generated {len(test_cases)} fallback test cases")
+        print(f"Generated {len(test_cases)} diverse fallback test cases")
         return test_cases
     
     async def validate_and_update_test_cases(
