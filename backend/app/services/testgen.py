@@ -18,7 +18,8 @@ class TestGenerator:
         context: str = "",
         source_types: List[str] = None,
         model: str = None,
-        temperature: float = None
+        temperature: float = None,
+        context_top_k: int = 20
     ) -> Dict[str, Any]:
         """Generate test cases for a specific journey"""
         try:
@@ -36,7 +37,7 @@ class TestGenerator:
             
             context_results = await self.rag_service.search(
                 query=search_query,
-                top_k=config.top_k,
+                top_k=context_top_k,  # Use the provided context_top_k parameter
                 metadata_filter={"journey": journey}  # Strictly filter by journey
             )
             
@@ -269,14 +270,18 @@ class TestGenerator:
         
         # Try to parse JSON response
         try:
-            # Find JSON array in response
+            # Find JSON array in response - improved regex to handle nested structures
             import re
-            json_match = re.search(r'\[.*\]', response, re.DOTALL)
+            json_match = re.search(r'\[[\s\S]*?\]', response, re.DOTALL)
             if json_match:
-                test_cases = json.loads(json_match.group())
-                if isinstance(test_cases, list):
+                json_str = json_match.group()
+                test_cases = json.loads(json_str)
+                if isinstance(test_cases, list) and len(test_cases) > 0:
+                    print(f"Successfully parsed {len(test_cases)} test cases from LLM response")
                     return test_cases
-        except:
+        except Exception as e:
+            print(f"JSON parsing failed: {str(e)}")
+            print(f"Response preview: {response[:500]}...")
             pass
         
         # Fallback: generate structured test cases manually
@@ -284,52 +289,85 @@ class TestGenerator:
     
     def _generate_fallback_tests(self, journey: str, max_cases: int, context: str) -> List[Dict[str, Any]]:
         """Generate fallback test cases if LLM parsing fails"""
+        print(f"Generating {max_cases} fallback test cases for journey: {journey}")
         test_cases = []
         
-        # Generate basic test cases based on journey type
-        base_tests = [
-            {
-                "test_id": "TC001",
-                "title": f"Basic {journey} Functionality",
-                "description": f"Verify basic {journey} functionality works as expected",
-                "preconditions": ["System is accessible", "User has proper permissions"],
-                "test_steps": ["Navigate to journey", "Execute basic operation", "Verify result"],
-                "expected_results": ["Operation completes successfully", "Result is as expected"],
-                "test_data": "Standard test data",
-                "priority": "High",
-                "test_type": "Functional"
-            },
-            {
-                "test_id": "TC002",
-                "title": f"{journey} Error Handling",
-                "description": f"Verify {journey} handles errors gracefully",
-                "preconditions": ["System is accessible", "Error conditions can be triggered"],
-                "test_steps": ["Trigger error condition", "Observe system response"],
-                "expected_results": ["Error is handled gracefully", "User receives clear error message"],
-                "test_data": "Invalid test data",
-                "priority": "Medium",
-                "test_type": "Functional"
-            }
-        ]
+        # Generate test cases based on the requested max_cases
+        for i in range(1, max_cases + 1):
+            # Determine test type distribution (60% positive, 25% negative, 15% edge)
+            if i <= int(max_cases * 0.6):
+                test_type = "positive"
+                priority = "High" if i <= int(max_cases * 0.2) else "Medium"
+            elif i <= int(max_cases * 0.85):
+                test_type = "negative"
+                priority = "High" if i <= int(max_cases * 0.75) else "Medium"
+            else:
+                test_type = "edge"
+                priority = "Medium"
+            
+            # Generate test case based on type
+            if test_type == "positive":
+                test_case = {
+                    "test_case_name": f"Valid {journey} Operation - Test Case {i}",
+                    "preconditions": f"User is logged in and has access to {journey} functionality",
+                    "steps": [
+                        f"Navigate to {journey} section",
+                        f"Enter valid {journey} data",
+                        f"Submit {journey} request",
+                        f"Verify {journey} processing completes"
+                    ],
+                    "expected_result": f"{journey} operation completes successfully with expected output",
+                    "actual_result": "",
+                    "test_type": test_type,
+                    "test_case_id": f"TC{i:03d}",
+                    "priority": priority,
+                    "journey": journey,
+                    "requirement_reference": f"REQ-{i:03d}",
+                    "status": "Draft"
+                }
+            elif test_type == "negative":
+                test_case = {
+                    "test_case_name": f"Invalid {journey} Input - Test Case {i}",
+                    "preconditions": f"User is logged in and attempting {journey} operation",
+                    "steps": [
+                        f"Navigate to {journey} section",
+                        f"Enter invalid {journey} data",
+                        f"Submit {journey} request",
+                        f"Observe system response"
+                    ],
+                    "expected_result": f"System displays appropriate error message for invalid {journey} input",
+                    "actual_result": "",
+                    "test_type": test_type,
+                    "test_case_id": f"TC{i:03d}",
+                    "priority": priority,
+                    "journey": journey,
+                    "requirement_reference": f"REQ-{i:03d}",
+                    "status": "Draft"
+                }
+            else:  # edge case
+                test_case = {
+                    "test_case_name": f"Edge Case {journey} Scenario - Test Case {i}",
+                    "preconditions": f"User is logged in and {journey} system is under edge conditions",
+                    "steps": [
+                        f"Navigate to {journey} section",
+                        f"Enter boundary value {journey} data",
+                        f"Submit {journey} request",
+                        f"Verify {journey} handles edge case correctly"
+                    ],
+                    "expected_result": f"{journey} operation handles edge case appropriately",
+                    "actual_result": "",
+                    "test_type": test_type,
+                    "test_case_id": f"TC{i:03d}",
+                    "priority": priority,
+                    "journey": journey,
+                    "requirement_reference": f"REQ-{i:03d}",
+                    "status": "Draft"
+                }
+            
+            test_cases.append(test_case)
         
-        test_cases.extend(base_tests)
-        
-        # Add more generic test cases if needed
-        if max_cases > 2:
-            for i in range(3, min(max_cases + 1, 6)):
-                test_cases.append({
-                    "test_id": f"TC{i:03d}",
-                    "title": f"{journey} Test Case {i}",
-                    "description": f"Additional test case for {journey} functionality",
-                    "preconditions": ["System is accessible"],
-                    "test_steps": ["Execute test operation", "Verify results"],
-                    "expected_results": ["Operation completes successfully"],
-                    "test_data": "Test data",
-                    "priority": "Medium",
-                    "test_type": "Functional"
-                })
-        
-        return test_cases[:max_cases]
+        print(f"Generated {len(test_cases)} fallback test cases")
+        return test_cases
     
     async def validate_and_update_test_cases(
         self,

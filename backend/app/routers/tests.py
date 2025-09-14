@@ -26,7 +26,8 @@ async def generate_tests(payload: TestGenerationRequest):
             context="",  # Context will be built from RAG search
             source_types=None,  # Use all source types
             model=payload.model,
-            temperature=None  # Use default temperature
+            temperature=None,  # Use default temperature
+            context_top_k=payload.context_top_k  # Pass the context_top_k parameter
         )
         
         return {
