@@ -8,7 +8,7 @@ class LLMConfig:
     default_model: str = "claude-3-5-haiku-20241022"
     default_embedding_model: str = "text-embedding-3-small"
     default_temperature: float = 0.2
-    max_tokens: int = 4000
+    max_tokens: int = 4000  # Reduced for better reliability
 
 @dataclass
 class JourneyConfig:

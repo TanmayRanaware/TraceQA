@@ -217,41 +217,12 @@ class TestGenerator:
     ) -> List[Dict[str, Any]]:
         """Generate test cases using LLM with improved parsing"""
         # Create a more specific prompt for better JSON generation
-        prompt = f"""
-You are a test case generation expert. Generate EXACTLY {max_cases} unique test cases for the journey: "{journey}".
+        prompt = f"""Generate {max_cases} test cases for "{journey}".
 
-Context from requirements documents:
-{context}
+Context: {context[:2000] if len(context) > 2000 else context}
 
-CRITICAL REQUIREMENTS:
-1. Generate EXACTLY {max_cases} test cases - NO MORE, NO LESS
-2. Each test case must be UNIQUE and different from others
-3. Include diverse scenarios: positive, negative, and edge cases
-4. Base test cases on the actual context provided
-5. Use specific, realistic test scenarios
-6. Avoid generic or repetitive test cases
-7. DO NOT truncate or limit the response - generate ALL {max_cases} test cases
-8. DO NOT say "I'll provide the first X test cases" - provide ALL {max_cases}
-
-Return ONLY a valid JSON array with this exact structure:
-[
-  {{
-    "test_case_name": "Specific test case name",
-    "preconditions": "Specific preconditions",
-    "steps": ["Step 1", "Step 2", "Step 3"],
-    "expected_result": "Specific expected result",
-    "actual_result": "",
-    "test_type": "positive|negative|edge",
-    "test_case_id": "TC001",
-    "priority": "High|Medium|Low",
-    "journey": "{journey}",
-    "requirement_reference": "REQ-001",
-    "status": "Draft"
-  }}
-]
-
-Generate ALL {max_cases} unique test cases now - do not truncate the response:
-"""
+Return JSON array:
+[{{"test_case_name": "Test name", "preconditions": "Preconditions", "steps": ["Step 1", "Step 2"], "expected_result": "Expected result", "test_type": "positive", "priority": "High", "journey": "{journey}"}}]"""
 
         response = self.llm_provider.complete(
             [{"role": "user", "content": prompt}],
