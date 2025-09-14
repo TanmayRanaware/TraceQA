@@ -219,13 +219,14 @@ const Requirements: React.FC = () => {
             <Box sx={{ flex: '1 1 300px', minWidth: '250px' }}>
               <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
                 <FormControl fullWidth>
-                  <InputLabel>Journey</InputLabel>
+                  <InputLabel shrink={selectedJourney !== ''}>Journey</InputLabel>
                   <Select
                     value={selectedJourney}
                     label="Journey"
                     onChange={(e: SelectChangeEvent) => setSelectedJourney(e.target.value)}
                     disabled={journeysLoading}
                     displayEmpty
+                    notched={selectedJourney !== ''}
                   >
                     <MenuItem value="" disabled>
                       <em>Select Journey</em>
