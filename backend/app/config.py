@@ -8,7 +8,7 @@ class LLMConfig:
     default_model: str = "claude-3-5-haiku-20241022"
     default_embedding_model: str = "text-embedding-3-small"
     default_temperature: float = 0.2
-    max_tokens: int = 4000
+    max_tokens: int = 4000  # Reduced for better reliability
 
 @dataclass
 class JourneyConfig:
@@ -50,6 +50,10 @@ class AppConfig:
     chunk_size: int = int(os.environ.get("CHUNK_SIZE", "1000"))
     chunk_overlap: int = int(os.environ.get("CHUNK_OVERLAP", "200"))
     top_k: int = int(os.environ.get("TOP_K", "10"))
+    
+    # Email Configuration
+    ba_email: str = os.environ.get("BA_EMAIL", "bhanagearshan@gmail.com")
+    admin_email: str = os.environ.get("ADMIN_EMAIL", "arshan.bhanage@sjsu.edu")
     
     def __post_init__(self):
         # Set default LLM config if not provided
