@@ -234,15 +234,6 @@ const Dashboard: React.FC = () => {
                 >
                   Generate Tests
                 </Button>
-                
-                <Button
-                  variant="outlined"
-                  startIcon={<Schedule />}
-                  fullWidth
-                  href="/background-tasks"
-                >
-                  Monitor Tasks
-                </Button>
               </Box>
             </CardContent>
           </Card>
