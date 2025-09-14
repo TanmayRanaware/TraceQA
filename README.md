@@ -1,6 +1,22 @@
-# Enterprise Requirements AI
+# TraceQ - Enterprise Requirements AI
 
 A comprehensive system for managing enterprise requirements, generating test cases, and tracking changes in banking and financial services projects. Built with privacy and compliance in mind, this system operates entirely on-premises and can work with local LLMs, Anthropic Claude, Google Gemini, or OpenAI.
+
+## 🚀 Quick Start
+
+```bash
+# Clone the repository
+git clone https://github.com/ArshanBhanage/TraceQ.git
+cd TraceQ
+
+# Start with Docker Compose
+docker-compose up -d
+
+# Or run locally
+cd backend
+pip install -r requirements.txt
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
 
 ## 🎯 Problem Statement
 

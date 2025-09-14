@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from ..services.testgen import TestGenerator
+from ..services.email_service import EmailService
 from ..schemas.tests import (
     TestGenerationRequest, 
     TestGenerationResponse,
@@ -249,3 +250,30 @@ async def get_test_case_types():
             {"value": "edge", "label": "Edge Cases", "description": "Boundary conditions and extreme values"}
         ]
     }
+
+
+@router.post("/send-to-ba")
+async def send_tests_to_ba(payload: dict):
+    """Send generated test cases to BA via email with Excel attachment"""
+    try:
+        tests = payload.get("tests", [])
+        journey = payload.get("journey", "Unknown Journey")
+        
+        if not tests:
+            raise HTTPException(status_code=400, detail="No test cases provided")
+        
+        email_service = EmailService()
+        
+        # Try Gmail API first, fallback to simple logging
+        result = email_service.send_test_cases_email(tests, journey)
+        
+        if not result.get("success"):
+            # Fallback to simple email logging
+            result = email_service.send_simple_email(tests, journey)
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to send email: {str(e)}")

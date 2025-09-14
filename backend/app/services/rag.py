@@ -173,7 +173,15 @@ class RAGService:
             return candidates[:top_k]
     
     def _chunk_text(self, text: str) -> List[str]:
-        """Split text into overlapping chunks"""
+        """Split text into overlapping chunks using enhanced text splitter"""
+        # Use the enhanced text splitter from the embedding provider
+        if hasattr(self.embedding_provider, 'split_text'):
+            try:
+                return self.embedding_provider.split_text(text)
+            except Exception as e:
+                logger.warning(f"Enhanced text splitting failed: {e}. Using fallback.")
+        
+        # Fallback to original chunking logic
         if len(text) <= self.chunk_size:
             return [text]
         
