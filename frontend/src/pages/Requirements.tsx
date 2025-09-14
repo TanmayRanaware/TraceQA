@@ -181,19 +181,14 @@ const Requirements: React.FC = () => {
         const response = await axios.get('/api/journeys/names');
         setJourneys(response.data.journey_names);
         
-        // Set default journey if none selected
-        if (!selectedJourney && response.data.journey_names.length > 0) {
-          setSelectedJourney(response.data.journey_names[0]);
-        }
+        // Don't auto-select first journey - let user choose
       } catch (err) {
         console.error('Failed to fetch journeys:', err);
         // Fallback to config journeys if API fails
         if (config?.journeys.length) {
           const fallbackJourneys = config.journeys.map(j => j.name);
           setJourneys(fallbackJourneys);
-          if (!selectedJourney && fallbackJourneys.length > 0) {
-            setSelectedJourney(fallbackJourneys[0]);
-          }
+          // Don't auto-select first journey - let user choose
         }
       } finally {
         setJourneysLoading(false);
@@ -230,7 +225,11 @@ const Requirements: React.FC = () => {
                     label="Journey"
                     onChange={(e: SelectChangeEvent) => setSelectedJourney(e.target.value)}
                     disabled={journeysLoading}
+                    displayEmpty
                   >
+                    <MenuItem value="" disabled>
+                      <em>Select Journey</em>
+                    </MenuItem>
                     {journeys.map((journey) => (
                       <MenuItem key={journey} value={journey}>
                         {journey}
