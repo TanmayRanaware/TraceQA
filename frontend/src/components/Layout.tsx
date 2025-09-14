@@ -40,9 +40,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const menuItems = [
     { text: 'Dashboard', icon: <DashboardIcon />, path: '/' },
-    { text: 'Requirements', icon: <RequirementsIcon />, path: '/requirements' },
-    { text: 'Test Generation', icon: <TestIcon />, path: '/test-generation' },
     { text: 'Document Upload', icon: <UploadIcon />, path: '/document-upload' },
+    { text: 'Test Generation', icon: <TestIcon />, path: '/test-generation' },
+    { text: 'Requirements', icon: <RequirementsIcon />, path: '/requirements' },
   ];
 
   const handleDrawerToggle = () => {
