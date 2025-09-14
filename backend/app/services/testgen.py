@@ -184,18 +184,20 @@ class TestGenerator:
         """Generate test cases using LLM with improved parsing"""
         # Create a more specific prompt for better JSON generation
         prompt = f"""
-You are a test case generation expert. Generate {max_cases} unique test cases for the journey: "{journey}".
+You are a test case generation expert. Generate EXACTLY {max_cases} unique test cases for the journey: "{journey}".
 
 Context from requirements documents:
 {context}
 
-IMPORTANT INSTRUCTIONS:
-1. Generate EXACTLY {max_cases} test cases
+CRITICAL REQUIREMENTS:
+1. Generate EXACTLY {max_cases} test cases - NO MORE, NO LESS
 2. Each test case must be UNIQUE and different from others
 3. Include diverse scenarios: positive, negative, and edge cases
 4. Base test cases on the actual context provided
 5. Use specific, realistic test scenarios
 6. Avoid generic or repetitive test cases
+7. DO NOT truncate or limit the response - generate ALL {max_cases} test cases
+8. DO NOT say "I'll provide the first X test cases" - provide ALL {max_cases}
 
 Return ONLY a valid JSON array with this exact structure:
 [
@@ -214,7 +216,7 @@ Return ONLY a valid JSON array with this exact structure:
   }}
 ]
 
-Generate {max_cases} unique test cases now:
+Generate ALL {max_cases} unique test cases now - do not truncate the response:
 """
 
         response = self.llm_provider.complete(
@@ -231,6 +233,12 @@ Generate {max_cases} unique test cases now:
         
         if test_cases and len(test_cases) > 0:
             print(f"Successfully parsed {len(test_cases)} test cases from LLM response")
+            
+            # Check if we got the expected number of test cases
+            if len(test_cases) < max_cases * 0.8:  # If we got less than 80% of requested
+                print(f"Warning: Only got {len(test_cases)} test cases, expected {max_cases}. Using fallback for better coverage.")
+                return self._generate_fallback_tests(journey, max_cases, context)
+            
             return test_cases
         else:
             print("Failed to parse test cases from LLM response, using fallback")
