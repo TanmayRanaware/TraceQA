@@ -1,4 +1,4 @@
-# TraceQ - Enterprise Requirements AI
+# TraceQA - Enterprise Requirements AI
 
 A comprehensive system for managing enterprise requirements, generating test cases, and tracking changes in banking and financial services projects. Built with privacy and compliance in mind, this system operates entirely on-premises and can work with local LLMs, Anthropic Claude, Google Gemini, or OpenAI.
 
