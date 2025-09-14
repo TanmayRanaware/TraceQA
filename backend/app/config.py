@@ -51,6 +51,10 @@ class AppConfig:
     chunk_overlap: int = int(os.environ.get("CHUNK_OVERLAP", "200"))
     top_k: int = int(os.environ.get("TOP_K", "10"))
     
+    # Email Configuration
+    ba_email: str = os.environ.get("BA_EMAIL", "bhanagearshan@gmail.com")
+    admin_email: str = os.environ.get("ADMIN_EMAIL", "arshan.bhanage@sjsu.edu")
+    
     def __post_init__(self):
         # Set default LLM config if not provided
         if self.llm is None:

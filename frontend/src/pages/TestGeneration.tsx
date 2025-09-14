@@ -26,6 +26,7 @@ import {
   Download,
   TableView,
   Refresh,
+  Email,
 } from '@mui/icons-material';
 import { DataGrid, GridColDef, GridRenderCellParams, GridValueGetterParams } from '@mui/x-data-grid';
 import axios from 'axios';
@@ -42,6 +43,11 @@ const TestGeneration: React.FC = () => {
   const [retryable, setRetryable] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showChangeManagement, setShowChangeManagement] = useState(false);
+  
+  // Email state
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [emailSuccess, setEmailSuccess] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -214,6 +220,34 @@ const TestGeneration: React.FC = () => {
     } catch (err: any) {
       setError('Failed to export test cases to Excel');
       console.error('Export error:', err);
+    }
+  };
+
+  const handleSendToBA = async () => {
+    if (generatedTests.length === 0 || !selectedJourney) return;
+
+    try {
+      setSendingEmail(true);
+      setEmailError(null);
+      setEmailSuccess(null);
+
+      const response = await axios.post('/api/tests/send-to-ba', {
+        tests: generatedTests,
+        journey: selectedJourney
+      });
+
+      if (response.data.success) {
+        setEmailSuccess(response.data.message);
+        // Clear success message after 5 seconds
+        setTimeout(() => setEmailSuccess(null), 5000);
+      } else {
+        setEmailError(response.data.message || 'Failed to send email');
+      }
+    } catch (err: any) {
+      setEmailError(err.response?.data?.detail || 'Failed to send email to BA');
+      console.error('Email error:', err);
+    } finally {
+      setSendingEmail(false);
     }
   };
 
@@ -659,14 +693,26 @@ const TestGeneration: React.FC = () => {
                   )}
                 </Typography>
                 {generatedTests.length > 0 && (
-                  <Button
-                    variant="outlined"
-                    startIcon={<Download />}
-                    onClick={handleExportExcel}
-                    size="small"
-                  >
-                    Export to Excel
-                  </Button>
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    <Button
+                      variant="outlined"
+                      startIcon={<Download />}
+                      onClick={handleExportExcel}
+                      size="small"
+                    >
+                      Export to Excel
+                    </Button>
+                    <Button
+                      variant="contained"
+                      startIcon={<Email />}
+                      onClick={handleSendToBA}
+                      disabled={sendingEmail || !selectedJourney}
+                      size="small"
+                      color="primary"
+                    >
+                      {sendingEmail ? 'Sending...' : 'Send to BA'}
+                    </Button>
+                  </Box>
                 )}
               </Box>
 
@@ -702,6 +748,18 @@ const TestGeneration: React.FC = () => {
                       💡 This appears to be a temporary issue. Please try again.
                     </Typography>
                   )}
+                </Alert>
+              )}
+
+              {emailSuccess && (
+                <Alert severity="success" sx={{ mb: 3 }}>
+                  {emailSuccess}
+                </Alert>
+              )}
+
+              {emailError && (
+                <Alert severity="error" sx={{ mb: 3 }}>
+                  {emailError}
                 </Alert>
               )}
 

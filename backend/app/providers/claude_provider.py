@@ -144,6 +144,11 @@ class ClaudeProvider(LLMProvider):
         except Exception as e:
             raise Exception(f"Claude embedding failed: {str(e)}")
     
+    def generate_text(self, prompt: str, model: str = "claude-3-5-haiku-20241022", temperature: float = 0.2) -> str:
+        """Generate text using Claude API (alias for complete method)"""
+        messages = [{"role": "user", "content": prompt}]
+        return self.complete(messages, model=model, temperature=temperature)
+    
     def rerank(self, query: str, candidates: List[str], model: str = "claude-3-5-sonnet-20241022") -> List[int]:
         """Rerank candidates using Claude API"""
         try:
