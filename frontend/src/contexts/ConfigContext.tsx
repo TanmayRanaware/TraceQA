@@ -90,8 +90,8 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
         ],
         supported_formats: ['pdf', 'docx', 'txt', 'md', 'rtf'],
         llm: {
-          default_model: 'gemini-2.0-flash',
-          default_embedding_model: 'embedding-001',
+          default_model: 'claude-3-5-haiku-20241022',
+          default_embedding_model: 'text-embedding-3-small',
           default_temperature: 0.2,
           max_tokens: 4000,
         },

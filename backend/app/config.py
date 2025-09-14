@@ -5,8 +5,8 @@ from dataclasses import dataclass
 @dataclass
 class LLMConfig:
     """LLM provider configuration"""
-    default_model: str = "gemini-2.0-flash"
-    default_embedding_model: str = "embedding-001"
+    default_model: str = "claude-3-5-haiku-20241022"
+    default_embedding_model: str = "text-embedding-3-small"
     default_temperature: float = 0.2
     max_tokens: int = 4000
 

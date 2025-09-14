@@ -42,8 +42,9 @@ const TestGeneration: React.FC = () => {
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const journeys = ['Point of Settlement', 'Payment Processing', 'Account Management'];
-  const providers = ['gemini', 'ollama', 'openai'];
+  const providers = ['claude', 'gemini', 'ollama', 'openai'];
   const models = {
+    claude: ['claude-3-5-haiku-20241022', 'claude-3-haiku-20240307'],
     gemini: ['gemini-2.0-flash', 'gemini-1.5-pro'],
     ollama: ['llama3.1:8b-instruct', 'llama3.1:70b-instruct', 'mistral:7b-instruct'],
     openai: ['gpt-4o-mini', 'gpt-4o', 'gpt-3.5-turbo'],

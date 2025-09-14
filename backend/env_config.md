@@ -1,13 +1,13 @@
 # Environment Configuration
 
-## Google AI Studio API Key Setup
+## Anthropic Claude API Key Setup
 
-To use the Gemini AI integration, you need to set your Google AI Studio API key as an environment variable.
+To use the Claude AI integration, you need to set your Anthropic API key as an environment variable.
 
 ### Option 1: Set Environment Variable (Recommended)
 
 ```bash
-export GEMINI_API_KEY="your_actual_api_key_here"
+export ANTHROPIC_API_KEY="your_actual_api_key_here"
 ```
 
 ### Option 2: Create .env file
@@ -16,8 +16,8 @@ Create a `.env` file in the backend directory:
 
 ```bash
 # backend/.env
-GEMINI_API_KEY=your_actual_api_key_here
-LLM_PROVIDER=gemini
+ANTHROPIC_API_KEY=your_actual_api_key_here
+LLM_PROVIDER=claude
 BASE_DIR=object_store
 REQ_VERSIONS_DIR=req_versions
 MAX_FILE_SIZE=50
@@ -31,7 +31,7 @@ TOP_K=10
 Add to your `~/.zshrc` or `~/.bashrc`:
 
 ```bash
-echo 'export GEMINI_API_KEY="your_actual_api_key_here"' >> ~/.zshrc
+echo 'export ANTHROPIC_API_KEY="your_actual_api_key_here"' >> ~/.zshrc
 source ~/.zshrc
 ```
 
@@ -57,11 +57,11 @@ export PINECONE_INDEX_NAME="enterprise-requirements"  # or your preferred index 
 
 ```bash
 # backend/.env
-GEMINI_API_KEY=your_actual_api_key_here
+ANTHROPIC_API_KEY=your_actual_api_key_here
 PINECONE_API_KEY=your_pinecone_api_key_here
 PINECONE_ENVIRONMENT=gcp-starter
 PINECONE_INDEX_NAME=enterprise-requirements
-LLM_PROVIDER=gemini
+LLM_PROVIDER=claude
 BASE_DIR=object_store
 REQ_VERSIONS_DIR=req_versions
 MAX_FILE_SIZE=50
@@ -82,7 +82,7 @@ TOP_K=10
 After setting the API keys, restart your backend server and test:
 
 ```bash
-# Test Gemini integration
+# Test Claude integration
 curl http://localhost:8000/api/requirements/provider-info
 
 # Test Pinecone integration
@@ -94,9 +94,10 @@ You should see:
 ```json
 # Provider info
 {
-  "provider_type": "GeminiProvider",
-  "provider_class": "<class 'app.providers.gemini_provider.GeminiProvider'>",
-  "is_gemini": true,
+  "provider_type": "ClaudeProvider",
+  "provider_class": "<class 'app.providers.claude_provider.ClaudeProvider'>",
+  "is_claude": true,
+  "is_gemini": false,
   "is_openai": false,
   "is_ollama": false
 }

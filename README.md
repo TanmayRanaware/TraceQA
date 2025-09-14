@@ -1,6 +1,6 @@
 # Enterprise Requirements AI
 
-A comprehensive system for managing enterprise requirements, generating test cases, and tracking changes in banking and financial services projects. Built with privacy and compliance in mind, this system operates entirely on-premises and can work with local LLMs, Google Gemini, or OpenAI.
+A comprehensive system for managing enterprise requirements, generating test cases, and tracking changes in banking and financial services projects. Built with privacy and compliance in mind, this system operates entirely on-premises and can work with local LLMs, Anthropic Claude, Google Gemini, or OpenAI.
 
 ## 🎯 Problem Statement
 
@@ -20,7 +20,7 @@ Enterprise banking projects face several challenges:
 3. **Requirements Versioning** - Tracks timeline of changes with semantic diffing
 4. **Test Generation** - Creates test cases using retrieved context and LLM
 5. **Background Processing** - Handles large operations asynchronously
-6. **Provider Abstraction** - Switchable between local (Ollama), Google Gemini, and OpenAI
+6. **Provider Abstraction** - Switchable between local (Ollama), Anthropic Claude, Google Gemini, and OpenAI
 
 ### Data Flow
 
@@ -83,10 +83,13 @@ pip install -r requirements.txt
 
 2. **Environment Configuration**
 ```bash
-# LLM Provider (gemini, ollama, or openai)
-export LLM_PROVIDER=gemini
+# LLM Provider (claude, gemini, ollama, or openai)
+export LLM_PROVIDER=claude
 
-# For Gemini (default)
+# For Claude (default)
+export ANTHROPIC_API_KEY=your_anthropic_api_key_here
+
+# For Gemini (optional)
 export GEMINI_API_KEY=your_gemini_api_key_here
 
 # For OpenAI (optional)
@@ -126,9 +129,9 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 GET /api/requirements/provider-info
 ```
 
-#### Test Gemini Integration
+#### Test Claude Integration
 ```http
-POST /api/requirements/test-gemini
+POST /api/requirements/test-claude
 ```
 
 #### Ingest Document
@@ -216,14 +219,14 @@ DELETE /api/background/tasks/{task_id}
 ## 🔒 Security & Compliance
 
 ### On-Premises Deployment
-- **No Cloud Dependencies**: All processing happens locally (unless using Gemini/OpenAI)
+- **No Cloud Dependencies**: All processing happens locally (unless using Claude/Gemini/OpenAI)
 - **File-based Storage**: Documents stored on local filesystem
 - **Air-gapped Capable**: Can operate without internet access when using Ollama
 - **Audit Trail**: Complete logging of all operations
 
 ### Data Privacy
 - **Local Embeddings**: Vector embeddings generated and stored locally
-- **Provider Selection**: Choose between local (Ollama), Gemini, or OpenAI
+- **Provider Selection**: Choose between local (Ollama), Claude, Gemini, or OpenAI
 - **Document Isolation**: Each journey's data is separately indexed
 - **Access Control**: File system permissions control document access
 
@@ -261,14 +264,14 @@ curl -X POST "http://localhost:8000/api/tests/generate" \
   }'
 ```
 
-### 2. Testing Gemini Integration
+### 2. Testing Claude Integration
 
 ```bash
 # Check which provider is active
 curl -X GET "http://localhost:8000/api/requirements/provider-info"
 
-# Test Gemini with a simple prompt
-curl -X POST "http://localhost:8000/api/requirements/test-gemini"
+# Test Claude with a simple prompt
+curl -X POST "http://localhost:8000/api/requirements/test-claude"
 ```
 
 ### 3. Handling Requirement Changes
@@ -324,9 +327,9 @@ curl -X GET "http://localhost:8000/api/requirements/timeline/Point of Settlement
 ### LLM Provider Selection
 
 ```bash
-# Use Google Gemini (default)
-export LLM_PROVIDER=gemini
-export GEMINI_API_KEY=your_api_key_here
+# Use Anthropic Claude (default)
+export LLM_PROVIDER=claude
+export ANTHROPIC_API_KEY=your_api_key_here
 
 # Use local Ollama models
 export LLM_PROVIDER=ollama

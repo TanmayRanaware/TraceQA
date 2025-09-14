@@ -15,6 +15,7 @@ async def get_provider_info():
 		provider_info = {
 			"provider_type": provider.__class__.__name__,
 			"provider_class": str(provider.__class__),
+			"is_claude": "claude" in provider.__class__.__name__.lower(),
 			"is_gemini": "gemini" in provider.__class__.__name__.lower(),
 			"is_openai": "openai" in provider.__class__.__name__.lower(),
 			"is_ollama": "ollama" in provider.__class__.__name__.lower(),
@@ -22,6 +23,28 @@ async def get_provider_info():
 		return provider_info
 	except Exception as e:
 		raise HTTPException(status_code=500, detail=f"Failed to get provider info: {str(e)}")
+
+
+@router.post("/requirements/test-claude")
+async def test_claude_integration():
+	"""Test the Claude integration with a simple prompt."""
+	try:
+		provider = get_provider()
+		if "claude" not in provider.__class__.__name__.lower():
+			return {"message": "Claude is not the active provider", "active_provider": provider.__class__.__name__}
+		
+		# Test with a simple prompt
+		test_prompt = "Explain how AI works in a few words"
+		response = provider.complete([{"role": "user", "content": test_prompt}], model="claude-3-5-haiku-20241022")
+		
+		return {
+			"message": "Claude integration test successful",
+			"test_prompt": test_prompt,
+			"response": response,
+			"provider": provider.__class__.__name__
+		}
+	except Exception as e:
+		raise HTTPException(status_code=500, detail=f"Claude test failed: {str(e)}")
 
 
 @router.post("/requirements/test-gemini")

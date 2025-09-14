@@ -152,7 +152,7 @@ const Dashboard: React.FC = () => {
                 </Typography>
                 <Chip
                   label={providerInfo?.provider_type || 'Unknown'}
-                  color={providerInfo?.is_gemini ? 'success' : 'default'}
+                  color={providerInfo?.is_claude ? 'success' : providerInfo?.is_gemini ? 'primary' : 'default'}
                   size="small"
                 />
               </Box>
