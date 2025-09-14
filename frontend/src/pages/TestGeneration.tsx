@@ -660,7 +660,7 @@ const TestGeneration: React.FC = () => {
                       <Button 
                         color="inherit" 
                         size="small" 
-                        onClick={handleGenerateTests}
+                        onClick={() => handleGenerateTests(1, false)}
                         disabled={loading}
                       >
                         Retry
