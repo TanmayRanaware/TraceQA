@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routers import health, upload, versions, tests, requirements, background_tasks, config, vector_db
+from .routers import health, upload, versions, tests, requirements, background_tasks, config, vector_db, journeys
 
 app = FastAPI(
     title="Enterprise Requirements AI",
@@ -26,6 +26,7 @@ app.include_router(requirements.router)
 app.include_router(background_tasks.router)
 app.include_router(config.router)
 app.include_router(vector_db.router)
+app.include_router(journeys.router)
 
 @app.get("/")
 async def root():

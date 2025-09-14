@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Card,
@@ -35,14 +35,31 @@ const TestGeneration: React.FC = () => {
   const [contextTopK, setContextTopK] = useState(20);
   const [selectedProvider, setSelectedProvider] = useState('');
   const [selectedModel, setSelectedModel] = useState('');
-  const [generatedTests, setGeneratedTests] = useState([]);
+  const [generatedTests, setGeneratedTests] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retryable, setRetryable] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showChangeManagement, setShowChangeManagement] = useState(false);
 
-  const journeys = ['Point of Settlement', 'Payment Processing', 'Account Management'];
+  const [journeys, setJourneys] = useState<string[]>([]);
   const providers = ['claude', 'gemini', 'ollama', 'openai'];
+
+  // Fetch journeys on component mount
+  useEffect(() => {
+    const fetchJourneys = async () => {
+      try {
+        const response = await axios.get('/api/journeys/names');
+        setJourneys(response.data.journey_names);
+      } catch (err) {
+        console.error('Failed to fetch journeys:', err);
+        // Fallback to default journeys
+        setJourneys(['Point of Settlement', 'Payment Processing', 'Account Management']);
+      }
+    };
+
+    fetchJourneys();
+  }, []);
   const models = {
     claude: ['claude-3-5-haiku-20241022', 'claude-3-haiku-20240307'],
     gemini: ['gemini-2.0-flash', 'gemini-1.5-pro'],
@@ -133,7 +150,7 @@ const TestGeneration: React.FC = () => {
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', 'test_cases.xlsx');
+      link.setAttribute('download', 'test_cases_structured.xlsx');
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -141,6 +158,63 @@ const TestGeneration: React.FC = () => {
     } catch (err: any) {
       setError('Failed to export test cases to Excel');
       console.error('Export error:', err);
+    }
+  };
+
+  const handleValidateTestCases = async () => {
+    if (!selectedJourney) return;
+
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const response = await axios.post('/api/tests/validate-test-cases', {
+        journey: selectedJourney,
+        validate_outdated: true,
+        remove_outdated: true
+      });
+      
+      if (response.data.status === 'success') {
+        alert(`Validation completed! Found ${response.data.outdated_cases_found} outdated cases, removed ${response.data.outdated_cases_removed} cases.`);
+      } else {
+        setError(response.data.message || 'Validation failed');
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Failed to validate test cases');
+      console.error('Validation error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleChangeManagement = async (action: string, documentUri: string, sourceType: string) => {
+    if (!selectedJourney) return;
+
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const response = await axios.post('/api/tests/change-management', {
+        journey: selectedJourney,
+        document_uri: documentUri,
+        source_type: sourceType,
+        action: action
+      });
+      
+      if (response.data.status === 'success') {
+        alert(`Change management completed! ${response.data.message}`);
+        // Refresh test cases if new ones were generated
+        if (response.data.new_test_cases) {
+          setGeneratedTests(prev => [...prev, ...response.data.new_test_cases]);
+        }
+      } else {
+        setError(response.data.message || 'Change management failed');
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Failed to handle requirement change');
+      console.error('Change management error:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -156,17 +230,70 @@ const TestGeneration: React.FC = () => {
     }
   };
 
-  // Define DataGrid columns
+  // Define DataGrid columns for Objective A structured format
   const columns: GridColDef[] = [
     { 
-      field: 'key', 
-      headerName: 'Key', 
-      width: 100
+      field: 'test_case_name', 
+      headerName: 'Test Case Name', 
+      width: 250,
+      renderCell: (params: GridRenderCellParams) => (
+        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+          {params.row.test_case_name || params.row.name || params.row.title || 'Untitled Test'}
+        </Typography>
+      )
     },
     { 
-      field: 'name', 
-      headerName: 'Name', 
-      width: 250
+      field: 'preconditions', 
+      headerName: 'Preconditions', 
+      width: 200
+    },
+    { 
+      field: 'steps', 
+      headerName: 'Steps', 
+      width: 300
+    },
+    { 
+      field: 'expected_result', 
+      headerName: 'Expected Result', 
+      width: 200
+    },
+    { 
+      field: 'actual_result', 
+      headerName: 'Actual Result', 
+      width: 200
+    },
+    { 
+      field: 'test_type', 
+      headerName: 'Test Type', 
+      width: 120,
+      renderCell: (params: GridRenderCellParams) => {
+        const testType = params.row.test_type || 'positive';
+        const color = testType === 'positive' ? 'success' : 
+                     testType === 'negative' ? 'error' : 'warning';
+        const label = testType === 'positive' ? 'Positive' :
+                     testType === 'negative' ? 'Negative' : 'Edge';
+        return <Chip label={label} color={color} size="small" />;
+      }
+    },
+    { 
+      field: 'priority', 
+      headerName: 'Priority', 
+      width: 100,
+      renderCell: (params: GridRenderCellParams) => {
+        const priority = params.row.priority || 'Medium';
+        const color = priority === 'High' ? 'error' : priority === 'Low' ? 'success' : 'warning';
+        return <Chip label={priority} color={color} size="small" />;
+      }
+    },
+    { 
+      field: 'journey', 
+      headerName: 'Journey', 
+      width: 150
+    },
+    { 
+      field: 'requirement_reference', 
+      headerName: 'Requirement Reference', 
+      width: 180
     },
     { 
       field: 'status', 
@@ -181,61 +308,33 @@ const TestGeneration: React.FC = () => {
       )
     },
     { 
-      field: 'precondition_objective', 
-      headerName: 'Precondition Objective', 
-      width: 200
-    },
-    { 
-      field: 'folder', 
-      headerName: 'Folder', 
-      width: 150
-    },
-    { 
-      field: 'priority', 
-      headerName: 'Priority', 
-      width: 100,
-      renderCell: (params: GridRenderCellParams) => {
-        const priority = params.row.priority || 'Medium';
-        const color = priority === 'High' ? 'error' : priority === 'Low' ? 'success' : 'warning';
-        return <Chip label={priority} color={color} size="small" />;
-      }
-    },
-    { 
-      field: 'component_labels_str', 
-      headerName: 'Component Labels', 
-      width: 180
-    },
-    { 
-      field: 'owner', 
-      headerName: 'Owner', 
+      field: 'test_case_id', 
+      headerName: 'Test Case ID', 
       width: 120
-    },
-    { 
-      field: 'estimated_time', 
-      headerName: 'Estimated Time', 
-      width: 130
-    },
-    { 
-      field: 'coverage', 
-      headerName: 'Coverage', 
-      width: 150
-    },
-    { 
-      field: 'test_script', 
-      headerName: 'Test Script', 
-      width: 300
     }
   ];
 
-  // Prepare data for DataGrid
+  // Prepare data for DataGrid with structured format
   const gridData = generatedTests.map((test: any, index: number) => ({
     id: index + 1,
+    // New structured format fields
+    test_case_name: test.test_case_name || test.name || test.title || 'Untitled Test',
+    preconditions: test.preconditions || test.precondition_objective || 'N/A',
+    steps: test.steps || test.test_script || 'N/A',
+    expected_result: test.expected_result || test.expected || 'N/A',
+    actual_result: test.actual_result || '',
+    test_type: test.test_type || 'positive',
+    priority: test.priority || 'Medium',
+    journey: test.journey || selectedJourney,
+    requirement_reference: test.requirement_reference || 'N/A',
+    status: test.status || 'Draft',
+    test_case_id: test.test_case_id || test.key || test.test_id || `TC${String(index + 1).padStart(3, '0')}`,
+    // Legacy fields for backward compatibility
     key: test.key || test.test_id || `TC${String(index + 1).padStart(3, '0')}`,
     name: test.name || test.title || 'Untitled Test',
-    status: test.status || 'Draft',
+    status_legacy: test.status || 'Draft',
     precondition_objective: test.precondition_objective || 'N/A',
     folder: test.folder || selectedJourney,
-    priority: test.priority || 'Medium',
     component_labels_str: Array.isArray(test.component_labels) 
       ? test.component_labels.join(', ') 
       : test.component_labels || 'N/A',
@@ -313,6 +412,17 @@ const TestGeneration: React.FC = () => {
                 sx={{ mb: 2 }}
               />
 
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={showChangeManagement}
+                    onChange={(e) => setShowChangeManagement(e.target.checked)}
+                  />
+                }
+                label="Change Management"
+                sx={{ mb: 2 }}
+              />
+
               {showAdvanced && (
                 <>
                   <FormControl fullWidth sx={{ mb: 2 }}>
@@ -348,6 +458,55 @@ const TestGeneration: React.FC = () => {
                     </Select>
                   </FormControl>
                 </>
+              )}
+
+              {showChangeManagement && (
+                <Box sx={{ mt: 2, p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+                  <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
+                    Change Management
+                  </Typography>
+                  
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    onClick={handleValidateTestCases}
+                    disabled={!selectedJourney || loading}
+                    sx={{ mb: 1 }}
+                  >
+                    Validate & Remove Outdated Cases
+                  </Button>
+                  
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
+                    Scans existing test cases and removes those that no longer match current requirements
+                  </Typography>
+                  
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={() => handleChangeManagement('add', 'new-document.pdf', 'fsd')}
+                      disabled={!selectedJourney || loading}
+                    >
+                      Add New Requirement
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={() => handleChangeManagement('update', 'updated-document.pdf', 'addendum')}
+                      disabled={!selectedJourney || loading}
+                    >
+                      Update Requirement
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={() => handleChangeManagement('remove', 'old-document.pdf', 'annexure')}
+                      disabled={!selectedJourney || loading}
+                    >
+                      Remove Requirement
+                    </Button>
+                  </Box>
+                </Box>
               )}
 
               <Box sx={{ mt: 3 }}>
@@ -436,30 +595,77 @@ const TestGeneration: React.FC = () => {
               )}
 
               {generatedTests.length > 0 ? (
-                <Box sx={{ height: 600, width: '100%' }}>
-                  <DataGrid
-                    rows={gridData}
-                    columns={columns}
-                    initialState={{
-                      pagination: {
-                        paginationModel: {
-                          pageSize: 10,
+                <Box>
+                  {/* Test Case Summary */}
+                  <Box sx={{ mb: 3, p: 2, backgroundColor: 'grey.50', borderRadius: 1 }}>
+                    <Typography variant="h6" sx={{ mb: 2 }}>
+                      Test Case Summary
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                      <Chip 
+                        label={`Total: ${generatedTests.length}`} 
+                        color="primary" 
+                        variant="outlined" 
+                      />
+                      <Chip 
+                        label={`Positive: ${generatedTests.filter((t: any) => t.test_type === 'positive').length}`} 
+                        color="success" 
+                        variant="outlined" 
+                      />
+                      <Chip 
+                        label={`Negative: ${generatedTests.filter((t: any) => t.test_type === 'negative').length}`} 
+                        color="error" 
+                        variant="outlined" 
+                      />
+                      <Chip 
+                        label={`Edge: ${generatedTests.filter((t: any) => t.test_type === 'edge').length}`} 
+                        color="warning" 
+                        variant="outlined" 
+                      />
+                      <Chip 
+                        label={`High Priority: ${generatedTests.filter((t: any) => t.priority === 'High').length}`} 
+                        color="error" 
+                        size="small"
+                      />
+                      <Chip 
+                        label={`Medium Priority: ${generatedTests.filter((t: any) => t.priority === 'Medium').length}`} 
+                        color="warning" 
+                        size="small"
+                      />
+                      <Chip 
+                        label={`Low Priority: ${generatedTests.filter((t: any) => t.priority === 'Low').length}`} 
+                        color="success" 
+                        size="small"
+                      />
+                    </Box>
+                  </Box>
+
+                  {/* Data Grid */}
+                  <Box sx={{ height: 600, width: '100%' }}>
+                    <DataGrid
+                      rows={gridData}
+                      columns={columns}
+                      initialState={{
+                        pagination: {
+                          paginationModel: {
+                            pageSize: 10,
+                          },
                         },
-                      },
-                    }}
-                    pageSizeOptions={[10, 25, 50]}
-                    checkboxSelection
-                    disableRowSelectionOnClick
-                    sx={{
-                      '& .MuiDataGrid-cell': {
-                        fontSize: '0.875rem',
-                      },
-                      '& .MuiDataGrid-columnHeaders': {
-                        backgroundColor: 'rgba(0, 0, 0, 0.02)',
-                        fontWeight: 600,
-                      },
-                    }}
-                  />
+                      }}
+                      pageSizeOptions={[10, 25, 50]}
+                      checkboxSelection
+                      disableRowSelectionOnClick
+                      sx={{
+                        '& .MuiDataGrid-cell': {
+                          fontSize: '0.875rem',
+                        },
+                        '& .MuiDataGrid-columnHeaders': {
+                          backgroundColor: 'rgba(0, 0, 0, 0.02)',
+                          fontWeight: 600,
+                        },
+                      }}
+                    />
+                  </Box>
                 </Box>
               ) : (
                 <Paper sx={{ p: 4, textAlign: 'center' }}>

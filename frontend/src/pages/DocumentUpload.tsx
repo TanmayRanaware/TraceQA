@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Card,
@@ -20,6 +20,12 @@ import {
   ListItemText,
   ListItemIcon,
   Divider,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  ToggleButton,
+  ToggleButtonGroup,
 } from '@mui/material';
 import {
   Upload,
@@ -29,8 +35,23 @@ import {
   CloudUpload,
   FileUpload,
   Schedule,
+  Add,
+  Business,
 } from '@mui/icons-material';
 import axios from 'axios';
+
+interface Journey {
+  name: string;
+  description: string;
+  color: string;
+}
+
+interface SourceType {
+  value: string;
+  label: string;
+  description: string;
+  icon: string;
+}
 
 const DocumentUpload: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -41,14 +62,37 @@ const DocumentUpload: React.FC = () => {
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  
+  // Journey management
+  const [journeys, setJourneys] = useState<Journey[]>([]);
+  const [sourceTypes, setSourceTypes] = useState<SourceType[]>([]);
+  const [journeyMode, setJourneyMode] = useState<'existing' | 'new'>('existing');
+  const [newJourneyName, setNewJourneyName] = useState('');
+  const [newJourneyDescription, setNewJourneyDescription] = useState('');
+  const [showNewJourneyDialog, setShowNewJourneyDialog] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const journeys = ['Point of Settlement', 'Payment Processing', 'Account Management'];
-  const sourceTypes = [
-    { value: 'fsd', label: 'FSD (Functional Specification Document)' },
-    { value: 'addendum', label: 'Addendum' },
-    { value: 'annexure', label: 'Annexure' },
-    { value: 'email', label: 'Email Communication' },
-  ];
+  // Fetch journeys and source types on component mount
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        // Fetch journeys from the new journey management API
+        const journeysResponse = await axios.get('/api/journeys/');
+        setJourneys(journeysResponse.data.journeys);
+        
+        // Fetch source types from config
+        const configResponse = await axios.get('/api/config/');
+        setSourceTypes(configResponse.data.source_types);
+      } catch (err) {
+        console.error('Failed to fetch configuration:', err);
+        setError('Failed to load configuration');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchConfig();
+  }, []);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -58,8 +102,48 @@ const DocumentUpload: React.FC = () => {
     }
   };
 
+  const handleJourneyModeChange = (
+    event: React.MouseEvent<HTMLElement>,
+    newMode: 'existing' | 'new' | null,
+  ) => {
+    if (newMode !== null) {
+      setJourneyMode(newMode);
+      setSelectedJourney('');
+    }
+  };
+
+  const handleCreateNewJourney = async () => {
+    if (newJourneyName.trim()) {
+      try {
+        const response = await axios.post('/api/journeys/create', {
+          name: newJourneyName.trim(),
+          description: newJourneyDescription.trim() || 'Custom journey',
+          color: 'primary'
+        });
+        
+        if (response.data.status === 'success') {
+          // Add the new journey to the local state
+          setJourneys(prev => [...prev, response.data.journey]);
+          setSelectedJourney(newJourneyName.trim());
+          setNewJourneyName('');
+          setNewJourneyDescription('');
+          setShowNewJourneyDialog(false);
+          setJourneyMode('existing');
+        } else {
+          setError(response.data.message || 'Failed to create journey');
+        }
+      } catch (err: any) {
+        setError(err.response?.data?.detail || 'Failed to create journey');
+        console.error('Journey creation error:', err);
+      }
+    }
+  };
+
   const handleUpload = async () => {
-    if (!selectedFile || !selectedJourney || !sourceType) {
+    // Determine the journey name based on mode
+    const journeyName = journeyMode === 'existing' ? selectedJourney : newJourneyName.trim();
+    
+    if (!selectedFile || !journeyName || !sourceType) {
       setError('Please fill in all required fields');
       return;
     }
@@ -80,7 +164,7 @@ const DocumentUpload: React.FC = () => {
 
       // Then ingest the requirement
       const ingestResponse = await axios.post('/requirements/ingest', {
-        journey: selectedJourney,
+        journey: journeyName,
         document_uri: uploadResponse.data.uri,
         source_type: sourceType,
         effective_date: effectiveDate || undefined,
@@ -95,6 +179,9 @@ const DocumentUpload: React.FC = () => {
       setSourceType('');
       setEffectiveDate('');
       setNotes('');
+      setNewJourneyName('');
+      setNewJourneyDescription('');
+      setJourneyMode('existing');
       
       // Reset file input
       const fileInput = document.getElementById('file-input') as HTMLInputElement;
@@ -125,6 +212,24 @@ const DocumentUpload: React.FC = () => {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
+
+  if (loading) {
+    return (
+      <Box>
+        <Box sx={{ mb: 4 }}>
+          <Typography variant="h3" sx={{ mb: 1, fontWeight: 700 }}>
+            Document Upload
+          </Typography>
+          <Typography variant="h6" sx={{ color: 'text.secondary' }}>
+            Upload and ingest requirement documents for AI-powered analysis
+          </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+          <LinearProgress sx={{ width: '50%' }} />
+        </Box>
+      </Box>
+    );
+  }
 
   return (
     <Box>
@@ -171,21 +276,71 @@ const DocumentUpload: React.FC = () => {
                 </Typography>
               </Box>
 
-              {/* Form Fields */}
-              <FormControl fullWidth sx={{ mb: 2 }}>
-                <InputLabel>Journey *</InputLabel>
-                <Select
-                  value={selectedJourney}
-                  label="Journey *"
-                  onChange={(e: SelectChangeEvent) => setSelectedJourney(e.target.value)}
+              {/* Journey Selection */}
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600 }}>
+                  Journey Selection *
+                </Typography>
+                
+                <ToggleButtonGroup
+                  value={journeyMode}
+                  exclusive
+                  onChange={handleJourneyModeChange}
+                  aria-label="journey mode"
+                  sx={{ mb: 2 }}
                 >
-                  {journeys.map((journey) => (
-                    <MenuItem key={journey} value={journey}>
-                      {journey}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+                  <ToggleButton value="existing" aria-label="existing journey">
+                    <Business sx={{ mr: 1 }} />
+                    Choose Existing
+                  </ToggleButton>
+                  <ToggleButton value="new" aria-label="new journey">
+                    <Add sx={{ mr: 1 }} />
+                    Create New
+                  </ToggleButton>
+                </ToggleButtonGroup>
+
+                {journeyMode === 'existing' ? (
+                  <FormControl fullWidth>
+                    <InputLabel>Select Journey</InputLabel>
+                    <Select
+                      value={selectedJourney}
+                      label="Select Journey"
+                      onChange={(e: SelectChangeEvent) => setSelectedJourney(e.target.value)}
+                    >
+                      {journeys.map((journey) => (
+                        <MenuItem key={journey.name} value={journey.name}>
+                          <Box>
+                            <Typography variant="body1">{journey.name}</Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {journey.description}
+                            </Typography>
+                          </Box>
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                ) : (
+                  <Box>
+                    <TextField
+                      fullWidth
+                      label="Journey Name"
+                      value={newJourneyName}
+                      onChange={(e) => setNewJourneyName(e.target.value)}
+                      placeholder="e.g., Risk Management, Compliance"
+                      sx={{ mb: 2 }}
+                    />
+                    <TextField
+                      fullWidth
+                      label="Description (Optional)"
+                      value={newJourneyDescription}
+                      onChange={(e) => setNewJourneyDescription(e.target.value)}
+                      placeholder="Brief description of this journey"
+                      multiline
+                      rows={2}
+                    />
+                  </Box>
+                )}
+              </Box>
 
               <FormControl fullWidth sx={{ mb: 2 }}>
                 <InputLabel>Source Type *</InputLabel>
@@ -227,7 +382,14 @@ const DocumentUpload: React.FC = () => {
                 fullWidth
                 variant="contained"
                 onClick={handleUpload}
-                disabled={!selectedFile || !selectedJourney || !sourceType || uploading}
+                disabled={
+                  !selectedFile || 
+                  !sourceType || 
+                  uploading || 
+                  loading ||
+                  (journeyMode === 'existing' && !selectedJourney) ||
+                  (journeyMode === 'new' && !newJourneyName.trim())
+                }
                 startIcon={<Upload />}
                 size="large"
               >
@@ -339,6 +501,9 @@ const DocumentUpload: React.FC = () => {
                   Upload Guidelines:
                 </Typography>
                 <Typography variant="body2" color="info.contrastText" sx={{ mb: 1 }}>
+                  • Choose an existing journey or create a new one for your document
+                </Typography>
+                <Typography variant="body2" color="info.contrastText" sx={{ mb: 1 }}>
                   • Ensure documents are clear and readable
                 </Typography>
                 <Typography variant="body2" color="info.contrastText" sx={{ mb: 1 }}>
@@ -355,6 +520,52 @@ const DocumentUpload: React.FC = () => {
           </Card>
         </Box>
       </Box>
+
+      {/* New Journey Dialog */}
+      <Dialog 
+        open={showNewJourneyDialog} 
+        onClose={() => setShowNewJourneyDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Create New Journey</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Journey Name"
+            fullWidth
+            variant="outlined"
+            value={newJourneyName}
+            onChange={(e) => setNewJourneyName(e.target.value)}
+            placeholder="e.g., Risk Management, Compliance"
+            sx={{ mb: 2 }}
+          />
+          <TextField
+            margin="dense"
+            label="Description (Optional)"
+            fullWidth
+            multiline
+            rows={3}
+            variant="outlined"
+            value={newJourneyDescription}
+            onChange={(e) => setNewJourneyDescription(e.target.value)}
+            placeholder="Brief description of this journey"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowNewJourneyDialog(false)}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleCreateNewJourney}
+            variant="contained"
+            disabled={!newJourneyName.trim()}
+          >
+            Create Journey
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

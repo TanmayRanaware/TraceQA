@@ -22,6 +22,7 @@ import {
   BugReport as TestIcon,
   Schedule as BackgroundIcon,
   Upload as UploadIcon,
+  Business as JourneyIcon,
   AccountBalance as BankIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -45,6 +46,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { text: 'Test Generation', icon: <TestIcon />, path: '/test-generation' },
     { text: 'Background Tasks', icon: <BackgroundIcon />, path: '/background-tasks' },
     { text: 'Document Upload', icon: <UploadIcon />, path: '/document-upload' },
+    { text: 'Journey Management', icon: <JourneyIcon />, path: '/journey-management' },
   ];
 
   const handleDrawerToggle = () => {
