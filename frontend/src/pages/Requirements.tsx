@@ -168,8 +168,10 @@ const Requirements: React.FC = () => {
   const refreshJourneys = async () => {
     try {
       setJourneysLoading(true);
-      const response = await axios.get('/api/journeys/names');
-      setJourneys(response.data.journey_names);
+      // Fetch only journeys that have uploaded documents
+      const response = await axios.get('/requirements/versions');
+      const journeysWithDocs = response.data.versions.map((v: any) => v.journey);
+      setJourneys(journeysWithDocs);
     } catch (err) {
       console.error('Failed to refresh journeys:', err);
     } finally {
@@ -177,13 +179,15 @@ const Requirements: React.FC = () => {
     }
   };
 
-  // Fetch journeys dynamically from API
+  // Fetch journeys dynamically from API - only those with uploaded documents
   useEffect(() => {
     const fetchJourneys = async () => {
       try {
         setJourneysLoading(true);
-        const response = await axios.get('/api/journeys/names');
-        setJourneys(response.data.journey_names);
+        // Fetch only journeys that have uploaded documents
+        const response = await axios.get('/requirements/versions');
+        const journeysWithDocs = response.data.versions.map((v: any) => v.journey);
+        setJourneys(journeysWithDocs);
         
         // Don't auto-select first journey - let user choose
       } catch (err) {
