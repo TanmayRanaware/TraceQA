@@ -83,11 +83,18 @@ async def export_tests_to_excel(tests: List[Dict[str, Any]]):
         
         # Add test case data
         for row_idx, test in enumerate(tests, 2):
+            # Convert steps list to formatted string
+            steps_data = test.get("steps", test.get("test_script", ""))
+            if isinstance(steps_data, list):
+                steps_formatted = "\n".join([f"{i+1}. {step}" for i, step in enumerate(steps_data)])
+            else:
+                steps_formatted = str(steps_data) if steps_data else ""
+            
             # Use new structured format if available, fallback to legacy format
             row_data = [
                 test.get("test_case_name", test.get("name", test.get("title", ""))),
                 test.get("preconditions", test.get("precondition_objective", "")),
-                test.get("steps", test.get("test_script", "")),
+                steps_formatted,  # Use formatted steps string
                 test.get("expected_result", test.get("expected", "")),
                 test.get("actual_result", ""),
                 test.get("test_type", "positive"),
@@ -101,6 +108,9 @@ async def export_tests_to_excel(tests: List[Dict[str, Any]]):
             
             for col, value in enumerate(row_data, 1):
                 cell = ws.cell(row=row_idx, column=col, value=value)
+                
+                # Enable text wrapping for better readability
+                cell.alignment = Alignment(wrap_text=True, vertical='top')
                 
                 # Color code by test type
                 if col == 6:  # Test Type column
