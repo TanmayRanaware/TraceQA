@@ -28,7 +28,6 @@ import {
   SelectChangeEvent,
 } from '@mui/material';
 import {
-  Search,
   Description,
   Timeline,
   FactCheck,
@@ -89,9 +88,7 @@ function TabPanel(props: TabPanelProps) {
 const Requirements: React.FC = () => {
   const { config } = useConfig();
   const [tabValue, setTabValue] = useState(0);
-  const [searchQuery, setSearchQuery] = useState('');
   const [selectedJourney, setSelectedJourney] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
   const [timelineData, setTimelineData] = useState([]);
   const [factCheckClaim, setFactCheckClaim] = useState('');
   const [factCheckResults, setFactCheckResults] = useState<FactCheckResults | null>(null);
@@ -109,24 +106,6 @@ const Requirements: React.FC = () => {
     setTabValue(newValue);
   };
 
-  const handleSearch = async () => {
-    if (!searchQuery.trim() || !selectedJourney) return;
-
-    try {
-      setLoading(true);
-      const response = await axios.post('/requirements/search', {
-        journey: selectedJourney,
-        query: searchQuery,
-        top_k: 10,
-      });
-      setSearchResults(response.data.results);
-    } catch (err) {
-      setError('Search failed');
-      console.error('Search error:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleFactCheck = async () => {
     if (!factCheckClaim.trim() || !selectedJourney) return;
@@ -292,27 +271,6 @@ const Requirements: React.FC = () => {
                   Loading journeys...
                 </Typography>
               )}
-            </Box>
-            <Box sx={{ flex: '2 1 400px', minWidth: '300px' }}>
-              <TextField
-                fullWidth
-                label="Search Requirements"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Enter your search query..."
-                onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-              />
-            </Box>
-            <Box sx={{ flex: '0 1 150px', minWidth: '120px' }}>
-              <Button
-                fullWidth
-                variant="contained"
-                onClick={handleSearch}
-                disabled={!searchQuery.trim() || !selectedJourney}
-                startIcon={<Search />}
-              >
-                Search
-              </Button>
             </Box>
           </Box>
         </CardContent>
