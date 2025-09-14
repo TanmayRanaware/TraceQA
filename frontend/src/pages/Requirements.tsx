@@ -97,9 +97,12 @@ const Requirements: React.FC = () => {
   const [factCheckResults, setFactCheckResults] = useState<FactCheckResults | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Dynamic journey state
+  const [journeys, setJourneys] = useState<string[]>([]);
+  const [journeysLoading, setJourneysLoading] = useState(true);
 
-  // Get journeys and source types from configuration
-  const journeys = config?.journeys.map(j => j.name) || [];
+  // Get source types from configuration
   const sourceTypes = config?.source_types.map(st => st.value) || [];
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
@@ -158,11 +161,46 @@ const Requirements: React.FC = () => {
     }
   };
 
-  // Set default journey when config loads
-  useEffect(() => {
-    if (config?.journeys.length && !selectedJourney) {
-      setSelectedJourney(config.journeys[0].name);
+  const refreshJourneys = async () => {
+    try {
+      setJourneysLoading(true);
+      const response = await axios.get('/api/journeys/names');
+      setJourneys(response.data.journey_names);
+    } catch (err) {
+      console.error('Failed to refresh journeys:', err);
+    } finally {
+      setJourneysLoading(false);
     }
+  };
+
+  // Fetch journeys dynamically from API
+  useEffect(() => {
+    const fetchJourneys = async () => {
+      try {
+        setJourneysLoading(true);
+        const response = await axios.get('/api/journeys/names');
+        setJourneys(response.data.journey_names);
+        
+        // Set default journey if none selected
+        if (!selectedJourney && response.data.journey_names.length > 0) {
+          setSelectedJourney(response.data.journey_names[0]);
+        }
+      } catch (err) {
+        console.error('Failed to fetch journeys:', err);
+        // Fallback to config journeys if API fails
+        if (config?.journeys.length) {
+          const fallbackJourneys = config.journeys.map(j => j.name);
+          setJourneys(fallbackJourneys);
+          if (!selectedJourney && fallbackJourneys.length > 0) {
+            setSelectedJourney(fallbackJourneys[0]);
+          }
+        }
+      } finally {
+        setJourneysLoading(false);
+      }
+    };
+
+    fetchJourneys();
   }, [config, selectedJourney]);
 
   if (!config) {
@@ -184,20 +222,37 @@ const Requirements: React.FC = () => {
         <CardContent>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
             <Box sx={{ flex: '1 1 300px', minWidth: '250px' }}>
-              <FormControl fullWidth>
-                <InputLabel>Journey</InputLabel>
-                <Select
-                  value={selectedJourney}
-                  label="Journey"
-                  onChange={(e: SelectChangeEvent) => setSelectedJourney(e.target.value)}
+              <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+                <FormControl fullWidth>
+                  <InputLabel>Journey</InputLabel>
+                  <Select
+                    value={selectedJourney}
+                    label="Journey"
+                    onChange={(e: SelectChangeEvent) => setSelectedJourney(e.target.value)}
+                    disabled={journeysLoading}
+                  >
+                    {journeys.map((journey) => (
+                      <MenuItem key={journey} value={journey}>
+                        {journey}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={refreshJourneys}
+                  disabled={journeysLoading}
+                  sx={{ mt: 1, minWidth: 'auto' }}
                 >
-                  {journeys.map((journey) => (
-                    <MenuItem key={journey} value={journey}>
-                      {journey}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+                  Refresh
+                </Button>
+              </Box>
+              {journeysLoading && (
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
+                  Loading journeys...
+                </Typography>
+              )}
             </Box>
             <Box sx={{ flex: '2 1 400px', minWidth: '300px' }}>
               <TextField
