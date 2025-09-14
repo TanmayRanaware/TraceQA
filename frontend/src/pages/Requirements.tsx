@@ -146,6 +146,24 @@ const Requirements: React.FC = () => {
     }
   };
 
+  // Helper function to parse the custom timestamp format
+  const parseCustomTimestamp = (timestamp: string): Date => {
+    try {
+      // Convert format from "20250914T073302Z" to "2025-09-14T07:33:02Z"
+      const formatted = timestamp.replace(/(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z/, '$1-$2-$3T$4:$5:$6Z');
+      const date = new Date(formatted);
+      // Check if the date is valid
+      if (isNaN(date.getTime())) {
+        console.warn('Invalid date parsed from timestamp:', timestamp);
+        return new Date(); // Fallback to current date
+      }
+      return date;
+    } catch (error) {
+      console.error('Error parsing timestamp:', timestamp, error);
+      return new Date(); // Fallback to current date
+    }
+  };
+
   const handleTimelineFetch = async () => {
     if (!selectedJourney) return;
 
@@ -342,7 +360,7 @@ const Requirements: React.FC = () => {
                     color="primary"
                   />
                   <Typography variant="caption" color="text.secondary">
-                    {new Date(item.created_at).toLocaleDateString()}
+                    {parseCustomTimestamp(item.created_at).toLocaleDateString()}
                   </Typography>
                 </Box>
                 <Typography variant="body2" sx={{ mb: 1 }}>
