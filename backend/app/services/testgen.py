@@ -20,51 +20,85 @@ class TestGenerator:
         source_types: List[str] = None,
         model: str = None,
         temperature: float = None,
-        context_top_k: int = 20
+        context_top_k: int = 20,
+        page: int = 1
     ) -> Dict[str, Any]:
-        """Generate test cases for a specific journey"""
+        """Generate test cases for a specific journey with pagination support"""
         try:
             # Use configuration defaults if not specified
             model = model or config.llm.default_model
             temperature = temperature or config.llm.default_temperature
             
-            # Search for relevant requirements context - ONLY from uploaded documents for this journey
-            # Use a more specific search that focuses on the actual requirements content
+            # Calculate pagination parameters
+            offset = (page - 1) * context_top_k
+            limit = context_top_k
+            
+            # Search for relevant requirements context with pagination
             if context:
                 search_query = context
             else:
                 # Search for core requirement content in the journey documents
                 search_query = f"{journey} requirements functional specifications business rules"
             
-            context_results = await self.rag_service.search(
+            # Get total available documents first
+            total_results = await self.rag_service.search(
                 query=search_query,
-                top_k=context_top_k,  # Use the provided context_top_k parameter
-                metadata_filter={"journey": journey}  # Strictly filter by journey
+                top_k=1000,  # Get a large number to check total availability
+                metadata_filter={"journey": journey}
             )
             
-            if not context_results:
+            if not total_results:
                 raise HTTPException(
                     status_code=400, 
                     detail=f"No requirements documents found for journey '{journey}'. Please upload requirement documents for this journey before generating test cases."
                 )
             
+            # Get paginated results
+            context_results = total_results[offset:offset + limit]
+            
+            if not context_results:
+                return {
+                    "status": "success",
+                    "journey": journey,
+                    "test_cases": [],
+                    "total_generated": 0,
+                    "page": page,
+                    "has_next_page": False,
+                    "total_pages": (len(total_results) + context_top_k - 1) // context_top_k,
+                    "total_available": len(total_results),
+                    "message": "No more documents available for this page"
+                }
+            
             # Build context from search results
             context_text = self._build_context(context_results, context)
+            
+            # Calculate how many test cases to generate for this page
+            # Distribute max_cases across pages, but ensure quality
+            remaining_cases = max_cases - ((page - 1) * (max_cases // max(1, (len(total_results) + context_top_k - 1) // context_top_k)))
+            cases_for_this_page = min(remaining_cases, max(10, max_cases // max(1, (len(total_results) + context_top_k - 1) // context_top_k)))
             
             # Generate test cases using LLM
             test_cases = await self._generate_with_llm(
                 journey=journey,
                 context=context_text,
-                max_cases=max_cases,
+                max_cases=cases_for_this_page,
                 model=model,
                 temperature=temperature
             )
+            
+            # Calculate pagination info
+            total_pages = (len(total_results) + context_top_k - 1) // context_top_k
+            has_next_page = page < total_pages
             
             return {
                 "status": "success",
                 "journey": journey,
                 "test_cases": test_cases,
                 "total_generated": len(test_cases),
+                "page": page,
+                "has_next_page": has_next_page,
+                "total_pages": total_pages,
+                "total_available": len(total_results),
                 "context_used": context_text[:500] + "..." if len(context_text) > 500 else context_text,
                 "model_used": model
             }

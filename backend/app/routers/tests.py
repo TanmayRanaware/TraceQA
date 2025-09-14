@@ -27,12 +27,19 @@ async def generate_tests(payload: TestGenerationRequest):
             source_types=None,  # Use all source types
             model=payload.model,
             temperature=None,  # Use default temperature
-            context_top_k=payload.context_top_k  # Pass the context_top_k parameter
+            context_top_k=payload.context_top_k,  # Pass the context_top_k parameter
+            page=payload.page  # Pass the page parameter for pagination
         )
         
         return {
             "journey": payload.journey,
             "tests": result.get("test_cases", []),
+            "pagination": {
+                "page": result.get("page", 1),
+                "has_next_page": result.get("has_next_page", False),
+                "total_pages": result.get("total_pages", 1),
+                "total_available": result.get("total_available", 0)
+            },
             "metadata": result.get("metadata", {}),
             "debug": {
                 "status": result.get("status", "unknown"),

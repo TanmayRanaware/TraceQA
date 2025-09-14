@@ -53,6 +53,7 @@ class TestGenerationRequest(BaseModel):
     journey: str
     max_cases: int = 100
     context_top_k: int = 20
+    page: int = 1  # Pagination support
     provider: Optional[str] = None  # override env if set
     model: Optional[str] = None
 

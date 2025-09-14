@@ -41,6 +41,13 @@ const TestGeneration: React.FC = () => {
   const [retryable, setRetryable] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showChangeManagement, setShowChangeManagement] = useState(false);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasNextPage, setHasNextPage] = useState(false);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalAvailable, setTotalAvailable] = useState(0);
+  const [allTests, setAllTests] = useState<any[]>([]); // Store all generated tests
 
   const [journeys, setJourneys] = useState<string[]>([]);
   const providers = ['claude', 'gemini', 'ollama', 'openai'];
@@ -67,7 +74,7 @@ const TestGeneration: React.FC = () => {
     openai: ['gpt-4o-mini', 'gpt-4o', 'gpt-3.5-turbo'],
   };
 
-  const handleGenerateTests = async () => {
+  const handleGenerateTests = async (page: number = 1, append: boolean = false) => {
     if (!selectedJourney) return;
 
     try {
@@ -79,6 +86,7 @@ const TestGeneration: React.FC = () => {
         journey: selectedJourney,
         max_cases: maxCases,
         context_top_k: contextTopK,
+        page: page,
         provider: selectedProvider || undefined,
         model: selectedModel || undefined,
       });
@@ -88,7 +96,23 @@ const TestGeneration: React.FC = () => {
         setError(response.data.debug.message);
         setRetryable(true);
       } else {
-        setGeneratedTests(response.data.tests);
+        const newTests = response.data.tests || [];
+        
+        if (append && page > 1) {
+          // Append to existing tests for pagination
+          setAllTests(prev => [...prev, ...newTests]);
+          setGeneratedTests(prev => [...prev, ...newTests]);
+        } else {
+          // Replace tests for new generation
+          setAllTests(newTests);
+          setGeneratedTests(newTests);
+        }
+        
+        // Update pagination state
+        setCurrentPage(response.data.pagination?.page || 1);
+        setHasNextPage(response.data.pagination?.has_next_page || false);
+        setTotalPages(response.data.pagination?.total_pages || 1);
+        setTotalAvailable(response.data.pagination?.total_available || 0);
       }
     } catch (err: any) {
       let errorMessage = err.response?.data?.detail || 'Failed to generate tests';
@@ -109,6 +133,21 @@ const TestGeneration: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleNextPage = () => {
+    if (hasNextPage) {
+      handleGenerateTests(currentPage + 1, true);
+    }
+  };
+
+  const handleReset = () => {
+    setCurrentPage(1);
+    setHasNextPage(false);
+    setTotalPages(1);
+    setTotalAvailable(0);
+    setAllTests([]);
+    setGeneratedTests([]);
   };
 
   const handleBatchGeneration = async () => {
@@ -513,7 +552,7 @@ const TestGeneration: React.FC = () => {
                 <Button
                   fullWidth
                   variant="contained"
-                  onClick={handleGenerateTests}
+                  onClick={() => handleGenerateTests(1, false)}
                   disabled={!selectedJourney || loading}
                   startIcon={<BugReport />}
                   sx={{ mb: 2 }}
@@ -527,9 +566,53 @@ const TestGeneration: React.FC = () => {
                   onClick={handleBatchGeneration}
                   disabled={!selectedJourney || loading}
                   startIcon={<Schedule />}
+                  sx={{ mb: 2 }}
                 >
                   Start Batch Generation
                 </Button>
+
+                {/* Pagination Controls */}
+                {generatedTests.length > 0 && (
+                  <Box sx={{ mt: 2, p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+                    <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                      Pagination
+                    </Typography>
+                    
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        Page {currentPage} of {totalPages} • {allTests.length} total test cases
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {totalAvailable} documents available
+                      </Typography>
+                    </Box>
+                    
+                    <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
+                      <Button
+                        variant="outlined"
+                        onClick={handleReset}
+                        disabled={loading}
+                        size="small"
+                      >
+                        Reset
+                      </Button>
+                      <Button
+                        variant="contained"
+                        onClick={handleNextPage}
+                        disabled={!hasNextPage || loading}
+                        size="small"
+                      >
+                        Load More Tests &gt;
+                      </Button>
+                    </Box>
+                    
+                    {hasNextPage && (
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', mt: 1 }}>
+                        Click "Load More Tests" to generate test cases from next {contextTopK} document chunks
+                      </Typography>
+                    )}
+                  </Box>
+                )}
               </Box>
             </CardContent>
           </Card>
