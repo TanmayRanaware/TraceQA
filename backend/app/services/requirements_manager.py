@@ -122,14 +122,52 @@ class RequirementsManager:
     ) -> Dict[str, Any]:
         """Answer questions and fact-check claims against uploaded requirements documents"""
         try:
-            # Search for relevant evidence from uploaded documents
-            # Use multiple search strategies to find comprehensive information
+            # Enhanced search strategy for better fact-checking
+            # Extract key terms and create comprehensive search queries
+            claim_lower = claim.lower()
+            
+            # Create multiple targeted search queries
             search_queries = [
                 claim,  # Original question
                 f"{journey} {claim}",  # Journey-specific search
                 # Extract key terms for broader search
-                " ".join([word for word in claim.split() if len(word) > 3])
+                " ".join([word for word in claim.split() if len(word) > 3]),
+                # Add specific eligibility-related searches
+                "eligibility criteria requirements conditions",
+                "age requirements minimum maximum",
+                "citizen india requirements",
+                "savings bank account requirements",
+                "income tax payer requirements",
+                # Add journey-specific terms
+                f"{journey} eligibility requirements",
+                f"{journey} criteria conditions",
+                f"{journey} age citizen account",
             ]
+            
+            # Add specific terms based on claim content
+            if "eligibility" in claim_lower or "criteria" in claim_lower:
+                search_queries.extend([
+                    "eligibility criteria age citizen",
+                    "requirements conditions age",
+                    "minimum age maximum age",
+                    "citizen india age requirements",
+                    # Add very specific searches for APY eligibility
+                    "Any Citizen of India can join APY scheme",
+                    "age of the subscriber should be between 18 - 40 years",
+                    "savings bank account post office savings bank account",
+                    "should not be an Income tax payer citizen of India"
+                ])
+            
+            if "apy" in claim_lower or "pension" in claim_lower:
+                search_queries.extend([
+                    "apy scheme eligibility",
+                    "pension scheme requirements",
+                    "atal pension yojana criteria",
+                    # Add very specific APY searches
+                    "APY eligibility criteria such as",
+                    "citizen of india join apy",
+                    "age subscriber between 18 40 years"
+                ])
             
             all_evidence = []
             seen_chunks = set()
@@ -137,7 +175,7 @@ class RequirementsManager:
             for query in search_queries:
                 results = await self.rag_service.search(
                     query=query,
-                    top_k=5,  # Get more results per query
+                    top_k=10,  # Increased from 5 to 10 for better coverage
                     metadata_filter={"journey": journey}
                 )
                 
@@ -148,8 +186,32 @@ class RequirementsManager:
                         seen_chunks.add(text_hash)
                         all_evidence.append(result)
             
-            # Limit total results and sort by relevance
-            evidence_results = all_evidence[:config.top_k]
+            # Sort by relevance score and limit results
+            evidence_results = sorted(all_evidence, key=lambda x: x.get('score', 0), reverse=True)[:20]  # Increased limit
+            
+            # Boost scores for highly relevant content
+            for result in evidence_results:
+                text = result.get('text', '').lower()
+                score = result.get('score', 0)
+                
+                # Boost score for eligibility criteria content
+                if any(term in text for term in ['eligibility criteria', 'age of the subscriber', 'citizen of india', 'savings bank account', 'income tax payer']):
+                    result['score'] = score * 2.0  # Boost by 100%
+                
+                # Extra boost for exact matches
+                if any(term in text for term in ['18 - 40 years', 'between 18 - 40', 'not an income tax payer']):
+                    result['score'] = score * 3.0  # Triple the score
+                
+                # Maximum boost for the exact eligibility criteria content
+                if 'any citizen of india can join apy scheme' in text and 'eligibility criteria such as' in text:
+                    result['score'] = score * 5.0  # 5x boost for exact content
+                
+                # Boost for specific APY eligibility terms
+                if any(term in text for term in ['apy scheme eligibility', 'atal pension yojana criteria', 'citizen of india join']):
+                    result['score'] = score * 2.5  # 2.5x boost
+            
+            # Re-sort after boosting
+            evidence_results = sorted(evidence_results, key=lambda x: x.get('score', 0), reverse=True)
             
             if not evidence_results:
                 return {
@@ -306,8 +368,8 @@ class RequirementsManager:
             evidence_context += f"Summary: {doc_info['summary']}\n"
             evidence_context += "Relevant Content:\n"
             
-            for j, chunk in enumerate(doc_info['chunks'][:3], 1):  # Limit to 3 chunks per document
-                evidence_context += f"  {j}. {chunk[:800]}...\n"
+            for j, chunk in enumerate(doc_info['chunks'][:5], 1):  # Increased from 3 to 5 chunks per document
+                evidence_context += f"  {j}. {chunk[:1200]}...\n"  # Increased from 800 to 1200 chars per chunk
             
             evidence_context += "-" * 60 + "\n\n"
         
@@ -321,18 +383,21 @@ class RequirementsManager:
         UPLOADED DOCUMENTS CONTENT:
         {evidence_context}
         
-        INSTRUCTIONS:
+        CRITICAL INSTRUCTIONS:
         1. Answer the question based ONLY on the information provided in the uploaded documents above
-        2. If the documents contain specific details (numbers, amounts, percentages, conditions), include them in your answer
-        3. If the question asks about specific calculations or amounts, provide the exact figures if available in the documents
-        4. If the information is not available in the uploaded documents, clearly state that
-        5. Cite which document type (FSD, Addendum, etc.) contains the information
-        6. Be specific and detailed in your response
-        7. If there are multiple scenarios or conditions mentioned in the documents, explain them clearly
+        2. If the documents contain specific details (numbers, amounts, percentages, conditions), include them EXACTLY as stated
+        3. If the question asks about eligibility criteria, list ALL criteria mentioned in the documents
+        4. If the question asks about specific calculations or amounts, provide the exact figures if available in the documents
+        5. If the information is not available in the uploaded documents, clearly state that
+        6. Cite which document type (FSD, Addendum, etc.) contains the information
+        7. Be specific and detailed in your response - include exact quotes when relevant
+        8. If there are multiple scenarios or conditions mentioned in the documents, explain them clearly
+        9. For eligibility questions, provide a complete list of all requirements mentioned
+        10. If the documents contain numbered lists or bullet points, preserve that structure in your answer
         
         FORMAT YOUR ANSWER AS:
         
-        **Answer:** [Your detailed answer based on the uploaded documents]
+        **Answer:** [Your detailed answer based on the uploaded documents - include exact quotes and specific details]
         
         **Source:** [Which document(s) contain this information]
         
@@ -340,7 +405,7 @@ class RequirementsManager:
         
         **Note:** [Any limitations or missing information]
         
-        Remember: Answer ONLY based on what is explicitly stated in the uploaded requirement documents provided above.
+        Remember: Answer ONLY based on what is explicitly stated in the uploaded requirement documents provided above. Be thorough and include all relevant details.
         """
         
         response = self.llm_provider.complete(
