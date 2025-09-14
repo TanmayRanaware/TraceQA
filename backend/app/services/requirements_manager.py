@@ -1,17 +1,31 @@
 import os
 import json
+import logging
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from ..providers.provider_factory import get_provider
 from ..services.storage import save_object
 from ..services.versioning import record_version, list_versions, diff_versions, load_version_text
 from ..services.rag import RAGService
+from ..services.enhanced_rag import EnhancedRAGService
 from ..services.document_processor import extract_text_from_file
 from ..config import config
 
+logger = logging.getLogger(__name__)
+
 class RequirementsManager:
-    def __init__(self):
-        self.rag_service = RAGService()
+    def __init__(self, use_enhanced_rag: bool = False):
+        # Use regular RAG by default for now, enhanced RAG has issues
+        if use_enhanced_rag:
+            try:
+                self.rag_service = EnhancedRAGService()
+                logger.info("Using Enhanced RAG Service with LangChain")
+            except Exception as e:
+                logger.warning(f"Failed to initialize Enhanced RAG: {e}. Falling back to regular RAG.")
+                self.rag_service = RAGService()
+        else:
+            self.rag_service = RAGService()
+        
         self.llm_provider = get_provider()
     
     async def ingest_requirement(
