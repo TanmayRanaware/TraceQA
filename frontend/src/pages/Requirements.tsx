@@ -293,7 +293,6 @@ const Requirements: React.FC = () => {
       </Card>
 
       <Tabs value={tabValue} onChange={handleTabChange} sx={{ mb: 3 }}>
-        <Tab label="Search Results" icon={<Search />} />
         <Tab label="Timeline" icon={<Timeline />} />
         <Tab label="Fact Check" icon={<FactCheck />} />
       </Tabs>
@@ -304,44 +303,8 @@ const Requirements: React.FC = () => {
         </Alert>
       )}
 
-      <TabPanel value={tabValue} index={0}>
-        <Typography variant="h6" sx={{ mb: 2 }}>
-          Search Results for "{searchQuery}"
-        </Typography>
-        
-        {loading && <LinearProgress sx={{ mb: 2 }} />}
-        
-        {searchResults.length > 0 ? (
-          <List>
-            {searchResults.map((result: any, index: number) => (
-              <Paper key={index} sx={{ p: 2, mb: 2 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Score: {(result.score * 100).toFixed(1)}%
-                  </Typography>
-                  <Chip
-                    label={result.metadata?.source_type || 'Unknown'}
-                    size="small"
-                    variant="outlined"
-                  />
-                </Box>
-                <Typography variant="body1" sx={{ mb: 1 }}>
-                  {result.text}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Source: {result.metadata?.document_uri || 'Unknown'}
-                </Typography>
-              </Paper>
-            ))}
-          </List>
-        ) : (
-          <Typography color="text.secondary">
-            No search results found. Try a different query or journey.
-          </Typography>
-        )}
-      </TabPanel>
 
-      <TabPanel value={tabValue} index={1}>
+      <TabPanel value={tabValue} index={0}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
           <Typography variant="h6">
             Timeline for {selectedJourney}
@@ -387,7 +350,7 @@ const Requirements: React.FC = () => {
         )}
       </TabPanel>
 
-      <TabPanel value={tabValue} index={2}>
+      <TabPanel value={tabValue} index={1}>
         <Typography variant="h6" sx={{ mb: 2 }}>
           Fact Check Claims
         </Typography>
