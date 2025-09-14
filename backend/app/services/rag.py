@@ -3,6 +3,7 @@ import json
 import logging
 from typing import List, Dict, Any, Optional
 from ..providers.provider_factory import get_provider
+from ..providers.simple_embedding_provider import SimpleEmbeddingProvider
 from ..config import config
 from .pinecone_service import PineconeService
 
@@ -14,6 +15,9 @@ class RAGService:
         self.embedding_model = config.llm.default_embedding_model
         self.chunk_size = config.chunk_size
         self.chunk_overlap = config.chunk_overlap
+        
+        # Initialize simple embedding provider (no external APIs required)
+        self.embedding_provider = SimpleEmbeddingProvider(dimension=768)
         
         # Initialize Pinecone service
         try:
@@ -199,16 +203,15 @@ class RAGService:
         return chunks
     
     def _generate_embeddings(self, texts: List[str]) -> List[List[float]]:
-        """Generate embeddings for text chunks"""
+        """Generate embeddings for text chunks using simple embedding provider"""
         try:
-            embeddings = self.llm_provider.embed(
-                texts=texts,
-                model=self.embedding_model
-            )
+            # Use simple embedding provider (no external APIs required)
+            embeddings = self.embedding_provider.embed_texts(texts)
+            logger.info(f"Generated {len(embeddings)} embeddings using simple provider")
             return embeddings
         except Exception as e:
             logger.error(f"Embedding generation failed: {str(e)}")
-            # Return dummy embeddings as fallback
+            # Return dummy embeddings as fallback (768 dimensions)
             return [[0.0] * 768 for _ in texts]
     
     def _convert_metadata_filter(self, metadata_filter: Dict[str, Any]) -> Dict[str, Any]:

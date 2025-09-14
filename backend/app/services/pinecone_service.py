@@ -31,7 +31,7 @@ class PineconeService:
                 # Create index with appropriate configuration
                 self.pc.create_index(
                     name=self.index_name,
-                    dimension=1536,  # OpenAI text-embedding-3-small dimension (used with Claude)
+                    dimension=768,  # Standard embedding dimension for simple embeddings
                     metric="cosine",
                     spec=ServerlessSpec(
                         cloud="aws",

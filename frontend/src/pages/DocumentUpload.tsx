@@ -79,7 +79,6 @@ const DocumentUpload: React.FC = () => {
         // Fetch journeys from the new journey management API
         const journeysResponse = await axios.get('/api/journeys/');
         setJourneys(journeysResponse.data.journeys);
-        
         // Fetch source types from config
         const configResponse = await axios.get('/api/config/');
         setSourceTypes(configResponse.data.source_types);
@@ -152,6 +151,24 @@ const DocumentUpload: React.FC = () => {
       setUploading(true);
       setError(null);
 
+      // If creating a new journey, create it first
+      if (journeyMode === 'new') {
+        const journeyResponse = await axios.post('/api/journeys/create', {
+          name: newJourneyName.trim(),
+          description: newJourneyDescription.trim() || 'Custom journey',
+          color: 'primary'
+        });
+        
+        if (journeyResponse.data.status === 'success') {
+          // Add the new journey to the local state
+          setJourneys(prev => [...prev, journeyResponse.data.journey]);
+        } else {
+          setError(journeyResponse.data.message || 'Failed to create journey');
+          setUploading(false);
+          return;
+        }
+      }
+
       // First upload the file
       const formData = new FormData();
       formData.append('file', selectedFile);
@@ -175,7 +192,7 @@ const DocumentUpload: React.FC = () => {
       
       // Reset form
       setSelectedFile(null);
-      setSelectedJourney('');
+      setSelectedJourney(journeyMode === 'new' ? newJourneyName.trim() : '');
       setSourceType('');
       setEffectiveDate('');
       setNotes('');
@@ -342,20 +359,32 @@ const DocumentUpload: React.FC = () => {
                 )}
               </Box>
 
-              <FormControl fullWidth sx={{ mb: 2 }}>
-                <InputLabel>Source Type *</InputLabel>
-                <Select
-                  value={sourceType}
-                  label="Source Type *"
-                  onChange={(e: SelectChangeEvent) => setSourceType(e.target.value)}
-                >
-                  {sourceTypes.map((type) => (
-                    <MenuItem key={type.value} value={type.value}>
-                      {type.label}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+              {/* Source Type Selection */}
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600 }}>
+                  Source Type *
+                </Typography>
+                <FormControl fullWidth>
+                  <InputLabel>Source Type *</InputLabel>
+                  <Select
+                    value={sourceType}
+                    label="Source Type *"
+                    onChange={(e: SelectChangeEvent) => setSourceType(e.target.value)}
+                    sx={{ zIndex: 1 }}
+                  >
+                    {sourceTypes.map((type) => (
+                      <MenuItem key={type.value} value={type.value}>
+                        {type.label}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                {sourceTypes.length === 0 && (
+                  <Typography variant="caption" color="error" sx={{ mt: 1, display: 'block' }}>
+                    No source types available. Please refresh the page.
+                  </Typography>
+                )}
+              </Box>
 
               <TextField
                 fullWidth
