@@ -76,7 +76,6 @@ function App() {
               <Route path="/requirements" element={<Requirements />} />
               <Route path="/test-generation" element={<TestGeneration />} />
               <Route path="/document-upload" element={<DocumentUpload />} />
-              <Route path="/journey-management" element={<JourneyManager />} />
             </Routes>
           </Layout>
         </Router>
