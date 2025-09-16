@@ -7,7 +7,7 @@ A comprehensive system for managing enterprise requirements, generating test cas
 ```bash
 # Clone the repository
 git clone https://github.com/ArshanBhanage/TraceQ.git
-cd TraceQ
+cd TraceQA
 
 # Start with Docker Compose
 docker-compose up -d
